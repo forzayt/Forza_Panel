@@ -125,6 +125,17 @@ API routes only call into it.
 
 ## Troubleshooting
 
+- **`EACCES: permission denied` in `.next/`** — some files got created as
+  root (an earlier `sudo` run). Fix ownership once and stop using `sudo`
+  (port 3000 needs no privileges):
+  ```bash
+  sudo chown -R ubuntu:ubuntu ~/forzapanel
+  rm -rf ~/forzapanel/.next
+  npm run dev
+  ```
+- **`next start` says "Could not find a production build"** — run
+  `npm run build` first; `start` only serves an existing build.
+
 - **Import 500s** — the toast now shows the real reason. Common cause was
   `tar` warnings on partial archives; exit code 1 is tolerated, 2+ fails.
   Re-import overwrites partial folders, no cleanup needed.
