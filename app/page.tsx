@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/tailgrids/core/card";
 import { Progress } from "@/components/tailgrids/core/progress";
 import AreaChart from "@/components/AreaChart";
 import StatusDot from "@/components/StatusDot";
+import UpdatePill from "@/components/UpdatePill";
 
 interface SystemInfo {
   cpu: { usage: number; model: string; cores: number };
@@ -182,35 +183,38 @@ export default function DashboardPage() {
               )}
             </p>
           </div>
-          <Card className="flex items-center gap-3 px-3 py-1.5 text-xs">
-            <Badge color={error ? "error" : "success"} size="sm">
-              <StatusDot online={!error} />
-              {error ? "Offline" : "Online"}
-            </Badge>
-            <span className="hidden h-4 w-px bg-border-primary sm:block" />
-            <span className="hidden items-center gap-1.5 font-mono-tech text-text-tertiary sm:flex">
-              {ip ?? "…"}
-              {ip && (
-                <button
-                  onClick={copyIp}
-                  aria-label="Copy IP address"
-                  title={copied ? "Copied!" : "Copy IP address"}
-                  className="rounded p-0.5 text-text-tertiary transition-colors hover:text-text-primary"
-                >
-                  {copied ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-green-600">
-                      <path d="M4 12.5l5 5L20 6.5" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3">
-                      <rect x="9" y="9" width="12" height="12" rx="2" />
-                      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                    </svg>
-                  )}
-                </button>
-              )}
-            </span>
-          </Card>
+          <div className="flex items-center gap-3">
+            <UpdatePill />
+            <Card className="flex items-center gap-3 px-3 py-1.5 text-xs">
+              <Badge color={error ? "error" : "success"} size="sm">
+                <StatusDot online={!error} />
+                {error ? "Offline" : "Online"}
+              </Badge>
+              <span className="hidden h-4 w-px bg-border-primary sm:block" />
+              <span className="hidden items-center gap-1.5 font-mono-tech text-text-tertiary sm:flex">
+                {ip ?? "…"}
+                {ip && (
+                  <button
+                    onClick={copyIp}
+                    aria-label="Copy IP address"
+                    title={copied ? "Copied!" : "Copy IP address"}
+                    className="rounded p-0.5 text-text-tertiary transition-colors hover:text-text-primary"
+                  >
+                    {copied ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-green-600">
+                        <path d="M4 12.5l5 5L20 6.5" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3">
+                        <rect x="9" y="9" width="12" height="12" rx="2" />
+                        <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </span>
+            </Card>
+          </div>
         </div>
 
         {error && !data && (
