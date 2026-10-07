@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/common/app-shell";
 import InstallLoader from "@/components/InstallLoader";
+import ServerConsole from "@/components/ServerConsole";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Button } from "@/components/tailgrids/core/button";
 import { Card, CardTitle } from "@/components/tailgrids/core/card";
@@ -44,6 +45,7 @@ export default function ServerDetailPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [pendingTemplate, setPendingTemplate] = useState<TemplateSummary | null>(null);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [serverAction, setServerAction] = useState<"starting" | "stopping" | null>(null);
 
   const fetchServer = useCallback(async () => {
     try {
@@ -97,6 +99,30 @@ export default function ServerDetailPage() {
     setPendingTemplate(null);
     setIsInstalling(false);
     setIsImportOpen(true);
+  };
+
+  const handleServerPower = async (action: "start" | "stop") => {
+    setServerAction(action === "start" ? "starting" : "stopping");
+    try {
+      const res = await fetch(`/api/servers/${encodeURIComponent(name)}/${action}`, {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        toast.error(json?.error ?? `Failed to ${action} server (${res.status}).`);
+        return;
+      }
+      toast.success(
+        action === "start" ? `Server "${name}" started.` : `Server "${name}" stopped.`
+      );
+      fetchServer();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `Failed to ${action} server.`);
+    } finally {
+      setServerAction(null);
+    }
   };
 
   const handleImport = async (templateId: string) => {
@@ -213,7 +239,44 @@ export default function ServerDetailPage() {
             </p>
           </div>
           {server && (
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {server.status === "running" ? (
+                <Button
+                  variant="danger"
+                  appearance="outline"
+                  size="md"
+                  onPress={() => handleServerPower("stop")}
+                  isDisabled={serverAction !== null}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="size-4"
+                    aria-hidden="true"
+                  >
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                  {serverAction === "stopping" ? "Stopping…" : "Stop"}
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  appearance="fill"
+                  size="md"
+                  onPress={() => handleServerPower("start")}
+                  isDisabled={serverAction !== null}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="size-4"
+                    aria-hidden="true"
+                  >
+                    <path d="M8 5.5v13l11-6.5-11-6.5z" />
+                  </svg>
+                  {serverAction === "starting" ? "Starting…" : "Start"}
+                </Button>
+              )}
               {server.type === "Server" && (
                 <Button variant="success" appearance="fill" size="md" onPress={openImport}>
                   <svg
@@ -281,16 +344,21 @@ export default function ServerDetailPage() {
         )}
 
         {server && (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {details.map((d) => (
-              <Card key={d.label}>
-                <p className="text-[11px] text-text-tertiary">{d.label}</p>
-                <p className="mt-1 truncate font-mono-tech text-lg font-semibold text-text-primary capitalize" title={d.value}>
-                  {d.value}
-                </p>
-              </Card>
-            ))}
-          </div>
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {details.map((d) => (
+                <Card key={d.label}>
+                  <p className="text-[11px] text-text-tertiary">{d.label}</p>
+                  <p className="mt-1 truncate font-mono-tech text-lg font-semibold text-text-primary capitalize" title={d.value}>
+                    {d.value}
+                  </p>
+                </Card>
+              ))}
+            </div>
+            {server.template && (
+              <ServerConsole serverName={server.name} running={server.status === "running"} />
+            )}
+          </>
         )}
       </div>
 

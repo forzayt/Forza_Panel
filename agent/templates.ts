@@ -6,13 +6,9 @@ export interface GameTemplate {
   game: string;
   label: string;
   description: string;
-  ports?: unknown;
-  artifacts?: unknown;
-  layout?: string[];
+  download: string;
   serverCfg?: string[];
-  start?: unknown;
-  env?: unknown;
-  notes?: string[];
+  start?: string;
 }
 
 export interface TemplateSummary {

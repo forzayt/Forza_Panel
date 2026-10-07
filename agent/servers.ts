@@ -1,12 +1,21 @@
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { spawn } from "node:child_process";
+import { pipeline } from "node:stream/promises";
 import { getTemplate } from "./templates";
+
+const execFileAsync = promisify(execFile);
 
 export interface ServerRecord {
   name: string;
   type: string;
   status: "running" | "stopped" | "unknown";
   createdAt: string;
+  template?: string;
+  pid?: number;
 }
 
 const DATA_DIR = path.join(process.cwd(), "data", "servers");
@@ -23,16 +32,43 @@ async function readMeta(dir: string, name: string): Promise<ServerRecord> {
   try {
     const raw = await fs.readFile(path.join(dir, META_FILE), "utf-8");
     const meta = JSON.parse(raw) as Partial<ServerRecord>;
-    return {
+    const record: ServerRecord = {
       name,
       type: typeof meta.type === "string" ? meta.type : "Server",
       status: meta.status === "running" || meta.status === "stopped" ? meta.status : "unknown",
       createdAt:
         typeof meta.createdAt === "string" ? meta.createdAt : new Date(0).toISOString(),
     };
+    if (typeof meta.template === "string") record.template = meta.template;
+    if (typeof meta.pid === "number") record.pid = meta.pid;
+    // Reconcile stale "running" (e.g. panel restarted and pid is gone).
+    if (record.status === "running" && !isAlive(record.pid)) {
+      record.status = "stopped";
+      record.pid = undefined;
+      try {
+        await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
+      } catch {
+        // Best-effort only.
+      }
+    }
+    return record;
   } catch {
     // Folder exists without metadata — synthesize a record.
     return { name, type: "Server", status: "unknown", createdAt: new Date(0).toISOString() };
+  }
+}
+
+// Live processes started by this panel instance.
+const procs = new Map<string, number>();
+
+function isAlive(pid?: number): boolean {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e: unknown) {
+    // EPERM means the process exists but we can't signal it.
+    return (e as NodeJS.ErrnoException)?.code === "EPERM";
   }
 }
 
@@ -127,16 +163,12 @@ export async function importTemplate(
   if (!template) {
     return { error: "Template not found.", status: 404 };
   }
-  const dir = path.join(DATA_DIR, serverName);
-  // Materialize template folders (entries ending with "/"), skipping traversal.
-  for (const entry of template.layout ?? []) {
-    if (!entry.endsWith("/")) continue;
-    const clean = entry.replace(/\/+$/, "");
-    if (!clean || clean.includes("..") || clean.includes("/") || clean.includes("\\")) {
-      continue;
-    }
-    await fs.mkdir(path.join(dir, clean), { recursive: true });
+  if (!template.download || typeof template.download !== "string") {
+    return { error: "Template has no download URL.", status: 400 };
   }
+  const dir = path.join(DATA_DIR, serverName);
+  await fs.mkdir(dir, { recursive: true });
+  await downloadAndExtract(template.download, dir);
   if (template.serverCfg && template.serverCfg.length > 0) {
     await fs.writeFile(
       path.join(dir, "server.cfg"),
@@ -144,7 +176,129 @@ export async function importTemplate(
       "utf-8"
     );
   }
-  const record: ServerRecord = { ...server, type: template.label };
+  const record: ServerRecord = {
+    ...server,
+    type: template.label,
+    template: template.id,
+    status: "stopped",
+    pid: undefined,
+  };
   await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
   return { ok: true, record };
+}
+
+/** Resolve a download URL: direct archive, or scrape an artifact listing for the latest tarball. */
+async function resolveDownload(url: string): Promise<string> {
+  if (/\.(tar\.xz|tar\.gz|tgz)$/i.test(url)) return url;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Artifact listing responded ${res.status}.`);
+  const html = await res.text();
+  const hrefs = [...html.matchAll(/href="([^"]+\.tar\.xz)"/g)].map((m) => m[1]);
+  if (hrefs.length === 0) throw new Error("No server archive found in artifact listing.");
+  return new URL(hrefs[hrefs.length - 1], url).toString();
+}
+
+async function downloadAndExtract(url: string, dir: string): Promise<void> {
+  const file = await resolveDownload(url);
+  const archivePath = path.join(dir, "server-files.tar.xz");
+  const res = await fetch(file);
+  if (!res.ok || !res.body) {
+    throw new Error(`Download responded ${res.status}.`);
+  }
+  await pipeline(
+    res.body as unknown as NodeJS.ReadableStream,
+    fsSync.createWriteStream(archivePath)
+  );
+  try {
+    await execFileAsync("tar", ["-xf", archivePath, "-C", dir]);
+  } finally {
+    await fs.rm(archivePath, { force: true });
+  }
+}
+
+export async function startServer(
+  name: string
+): Promise<{ ok: true; pid: number } | { error: string; status: number }> {
+  if (!isValidServerName(name)) {
+    return { error: "Invalid server name.", status: 400 };
+  }
+  const server = await getServer(name);
+  if (!server) {
+    return { error: "Server not found.", status: 404 };
+  }
+  const existing = procs.get(name) ?? server.pid;
+  if (isAlive(existing)) {
+    return { error: `"${name}" is already running.`, status: 409 };
+  }
+  const template = server.template ? await getTemplate(server.template) : null;
+  const cmd = template?.start?.trim();
+  if (!cmd) {
+    return { error: "No start command — import a template first.", status: 400 };
+  }
+  const dir = path.join(DATA_DIR, name);
+  let child;
+  try {
+    const logFd = fsSync.openSync(path.join(dir, "server.log"), "a");
+    child = spawn(cmd, {
+      cwd: dir,
+      detached: true,
+      shell: true,
+      stdio: ["ignore", logFd, logFd],
+    });
+  } catch (e) {
+    return { error: `Failed to start: ${String(e)}`, status: 500 };
+  }
+  if (!child.pid) {
+    return { error: "Failed to start: no process id.", status: 500 };
+  }
+  child.unref();
+  procs.set(name, child.pid);
+  const record: ServerRecord = { ...server, status: "running", pid: child.pid };
+  await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
+  return { ok: true, pid: child.pid };
+}
+
+export async function stopServer(
+  name: string
+): Promise<{ ok: true } | { error: string; status: number }> {
+  if (!isValidServerName(name)) {
+    return { error: "Invalid server name.", status: 400 };
+  }
+  const server = await getServer(name);
+  if (!server) {
+    return { error: "Server not found.", status: 404 };
+  }
+  const pid = procs.get(name) ?? server.pid;
+  procs.delete(name);
+  if (isAlive(pid)) {
+    try {
+      process.kill(pid as number);
+    } catch {
+      // Already gone — treat as stopped.
+    }
+  }
+  const dir = path.join(DATA_DIR, name);
+  const record: ServerRecord = { ...server, status: "stopped", pid: undefined };
+  await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
+  return { ok: true };
+}
+
+export async function readServerLog(name: string, maxLines = 200): Promise<string | null> {
+  if (!isValidServerName(name)) return null;
+  try {
+    const stat = await fs.stat(path.join(DATA_DIR, name));
+    if (!stat.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  let raw: string;
+  try {
+    raw = await fs.readFile(path.join(DATA_DIR, name, "server.log"), "utf-8");
+  } catch {
+    return "";
+  }
+  const lines = raw.split(/\r?\n/);
+  // Drop the trailing empty line from a final newline.
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines.slice(-maxLines).join("\n");
 }
