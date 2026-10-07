@@ -2,12 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
+import { Button } from "@/components/tailgrids/core/button";
 import { Card, CardTitle } from "@/components/tailgrids/core/card";
+import {
+  Dialog,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/tailgrids/core/dialog";
+import { Input } from "@/components/tailgrids/core/input";
+import { Label } from "@/components/tailgrids/core/label";
 import { Skeleton } from "@/components/tailgrids/core/skeleton";
 import type { ServerRecord } from "@/agent/servers";
+import { toast } from "sonner";
 
 function formatDateTime(iso: string): string {
   const t = new Date(iso).getTime();
@@ -17,9 +28,14 @@ function formatDateTime(iso: string): string {
 
 export default function ServerDetailPage() {
   const params = useParams<{ name: string }>();
+  const router = useRouter();
   const name = params.name ? decodeURIComponent(params.name) : "";
   const [server, setServer] = useState<ServerRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchServer = useCallback(async () => {
     try {
@@ -43,6 +59,40 @@ export default function ServerDetailPage() {
     fetchServer();
   }, [fetchServer]);
 
+  const expectedConfirm = `delete ${name}`;
+
+  const openDelete = () => {
+    setConfirmText("");
+    setDeleteError(null);
+    setIsDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (confirmText.trim() !== expectedConfirm) {
+      setDeleteError(`Type "${expectedConfirm}" to confirm.`);
+      return;
+    }
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/servers/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setDeleteError(json?.error ?? `Failed to delete server (${res.status}).`);
+        return;
+      }
+      setIsDeleteOpen(false);
+      toast.success(`Server "${name}" deleted.`);
+      router.push("/servers");
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete server.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const details = server
     ? [
         { label: "Status", value: server.status },
@@ -55,35 +105,53 @@ export default function ServerDetailPage() {
   return (
     <AppShell>
       <div className="mt-6 space-y-5 px-2 lg:px-6">
-        <div>
-          <Link
-            href="/servers"
-            className="text-sm font-medium text-text-tertiary hover:text-text-primary"
-          >
-            ← Servers
-          </Link>
-          <h1 className="mt-1 mb-1 flex items-center gap-3 text-[28px] leading-8 font-medium text-text-primary">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-base font-bold text-text-primary">
-              {(server?.name ?? name).charAt(0).toUpperCase()}
-            </span>
-            <span className="font-mono-tech">{name}</span>
-          </h1>
-          <p className="text-sm leading-5 text-text-tertiary">
-            {server ? (
-              <>
-                {server.type} ·{" "}
-                <Badge
-                  color={server.status === "running" ? "success" : "gray"}
-                  size="sm"
-                  className="capitalize"
-                >
-                  {server.status}
-                </Badge>
-              </>
-            ) : (
-              "Loading server…"
-            )}
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <Link
+              href="/servers"
+              className="text-sm font-medium text-text-tertiary hover:text-text-primary"
+            >
+              ← Servers
+            </Link>
+            <h1 className="mt-1 mb-1 flex items-center gap-3 text-[28px] leading-8 font-medium text-text-primary">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-base font-bold text-text-primary">
+                {(server?.name ?? name).charAt(0).toUpperCase()}
+              </span>
+              <span className="font-mono-tech">{name}</span>
+            </h1>
+            <p className="text-sm leading-5 text-text-tertiary">
+              {server ? (
+                <>
+                  {server.type} ·{" "}
+                  <Badge
+                    color={server.status === "running" ? "success" : "gray"}
+                    size="sm"
+                    className="capitalize"
+                  >
+                    {server.status}
+                  </Badge>
+                </>
+              ) : (
+                "Loading server…"
+              )}
+            </p>
+          </div>
+          {server && (
+            <Button variant="danger" appearance="outline" size="md" onPress={openDelete}>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="size-4"
+              >
+                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              </svg>
+              Delete
+            </Button>
+          )}
         </div>
 
         {error === "not-found" && (
@@ -130,6 +198,60 @@ export default function ServerDetailPage() {
           </div>
         )}
       </div>
+
+      <Dialog
+        isOpen={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        aria-label="Delete server"
+      >
+        <DialogHeader>
+          <DialogTitle>Delete server</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-2">
+            <p className="text-sm text-text-secondary">
+              This permanently removes the{" "}
+              <span className="font-mono-tech font-semibold">{name}</span> folder and
+              everything inside it. This cannot be undone.
+            </p>
+            <Label htmlFor="delete-confirm">
+              Type <span className="font-mono-tech font-semibold">{expectedConfirm}</span>{" "}
+              to confirm
+            </Label>
+            <Input
+              id="delete-confirm"
+              className="w-full font-mono-tech"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleDelete();
+              }}
+              placeholder={expectedConfirm}
+              autoFocus
+            />
+            {deleteError && (
+              <p className="text-sm text-button-error-outline-text">{deleteError}</p>
+            )}
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            variant="primary"
+            appearance="outline"
+            onPress={() => setIsDeleteOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            appearance="fill"
+            onPress={handleDelete}
+            isDisabled={isDeleting || confirmText.trim() !== expectedConfirm}
+          >
+            {isDeleting ? "Deleting…" : "Delete Server"}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </AppShell>
   );
 }

@@ -49,6 +49,25 @@ export async function listServers(): Promise<ServerRecord[]> {
   return records;
 }
 
+export async function deleteServer(
+  name: string
+): Promise<{ ok: true } | { error: string; status: number }> {
+  if (!isValidServerName(name)) {
+    return { error: "Invalid server name.", status: 400 };
+  }
+  const dir = path.join(DATA_DIR, name);
+  try {
+    const stat = await fs.stat(dir);
+    if (!stat.isDirectory()) {
+      return { error: `"${name}" is not a server folder.`, status: 404 };
+    }
+  } catch {
+    return { error: "Server not found.", status: 404 };
+  }
+  await fs.rm(dir, { recursive: true, force: true });
+  return { ok: true };
+}
+
 export async function getServer(name: string): Promise<ServerRecord | null> {
   if (!isValidServerName(name)) return null;
   try {
