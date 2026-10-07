@@ -98,7 +98,7 @@ export default function ServerDetailPage() {
         { label: "Status", value: server.status },
         { label: "Type", value: server.type },
         { label: "Created", value: formatDateTime(server.createdAt) },
-        { label: "Folder", value: `data/${server.name}` },
+        { label: "Folder", value: `data/servers/${server.name}` },
       ]
     : [];
 
@@ -215,7 +215,10 @@ export default function ServerDetailPage() {
               everything inside it. This cannot be undone.
             </p>
             <Label htmlFor="delete-confirm">
-              Type <span className="font-mono-tech font-semibold">{expectedConfirm}</span>{" "}
+              Type{" "}
+              <span className="font-mono-tech font-semibold text-button-error-outline-text">
+                {expectedConfirm}
+              </span>{" "}
               to confirm
             </Label>
             <Input

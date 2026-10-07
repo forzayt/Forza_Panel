@@ -114,7 +114,7 @@ export default function ServersPage() {
             ) : (
               <p className="text-xs text-text-tertiary">
                 Letters, numbers, dashes and underscores — a folder is created under
-                <span className="font-mono-tech"> data/</span>.
+                <span className="font-mono-tech"> data/servers/</span>.
               </p>
             )}
           </div>

@@ -8,7 +8,7 @@ export interface ServerRecord {
   createdAt: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = path.join(process.cwd(), "data", "servers");
 const META_FILE = "server.json";
 
 // Letters, numbers, dashes, underscores. Must start alphanumeric, max 32 chars.
