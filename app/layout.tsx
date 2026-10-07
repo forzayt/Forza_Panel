@@ -13,8 +13,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | ForzaPanel — Local Server",
-    default: "ForzaPanel — Local Server",
+    template: "%s | ForzaPanel — Cloud Host",
+    default: "ForzaPanel — Cloud Host",
   },
   description: "Lightweight server control panel. Live system overview.",
 };
@@ -30,7 +30,7 @@ export default function RootLayout({
       lang="en"
       className={cn("h-full antialiased", inter.className)}
     >
-      <body className="h-full bg-background-gray-secondary_alt_2">
+      <body suppressHydrationWarning className="h-full bg-background-gray-secondary_alt_2">
         <ThemeProvider defaultTheme="light" enableSystem>
           <Providers>{children}</Providers>
         </ThemeProvider>

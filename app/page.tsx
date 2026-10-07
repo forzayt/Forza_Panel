@@ -114,6 +114,7 @@ function ChartPanel({
 
 export default function DashboardPage() {
   const [data, setData] = useState<SystemInfo | null>(null);
+  const [ip, setIp] = useState<string | null>(null);
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [memHistory, setMemHistory] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +138,16 @@ export default function DashboardPage() {
     const id = setInterval(fetchSystem, 2000);
     return () => clearInterval(id);
   }, [fetchSystem]);
+
+  useEffect(() => {
+    // IP rarely changes — fetch once on mount.
+    fetch("/api/ip", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.ip) setIp(json.ip);
+      })
+      .catch(() => {});
+  }, []);
 
   const cpu = data?.cpu.usage ?? 0;
   const mem = data?.memory.usage ?? 0;
@@ -166,16 +177,13 @@ export default function DashboardPage() {
             </p>
           </div>
           <Card className="flex items-center gap-3 px-3 py-1.5 text-xs">
-            <span className="flex items-center gap-1.5 text-text-secondary">
-              Local Server
-            </span>
             <Badge color={error ? "error" : "success"} size="sm">
               <StatusDot online={!error} />
               {error ? "Offline" : "Online"}
             </Badge>
             <span className="hidden h-4 w-px bg-border-primary sm:block" />
             <span className="hidden items-center gap-1.5 font-mono-tech text-text-tertiary sm:flex">
-              {data?.system.hostname ?? "…"}
+              {ip ?? "…"}
             </span>
           </Card>
         </div>

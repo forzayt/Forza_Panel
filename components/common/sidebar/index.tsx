@@ -128,19 +128,6 @@ export default function Sidebar({
                 </CollapsibleGroup>
             </nav>
 
-            {/* Footer — only visible when expanded */}
-            {isSidebarOpen && (
-                <div className='px-4 py-4'>
-                    <div className='rounded-2xl bg-background-gray-primary px-4 py-5 text-center'>
-                        <p className='mb-2 leading-6 font-semibold text-text-primary'>
-                            ForzaPanel
-                        </p>
-                        <small className='text-sm leading-5 tracking-[-0.15px] text-text-tertiary'>
-                            Lightweight server control panel
-                        </small>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

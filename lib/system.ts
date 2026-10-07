@@ -134,6 +134,23 @@ export async function getDiskInfo(): Promise<{
   }
 }
 
+export function getLocalIp(): string {
+  const nets = os.networkInterfaces();
+  // Prefer the first non-internal IPv4 (LAN address).
+  for (const addrs of Object.values(nets)) {
+    for (const a of addrs ?? []) {
+      if (a.family === "IPv4" && !a.internal) return a.address;
+    }
+  }
+  // Fallback: any IPv4 (including loopback).
+  for (const addrs of Object.values(nets)) {
+    for (const a of addrs ?? []) {
+      if (a.family === "IPv4") return a.address;
+    }
+  }
+  return "127.0.0.1";
+}
+
 export async function getSystemInfo(): Promise<SystemInfo> {
   const cpus = os.cpus();
   const totalMem = os.totalmem();
