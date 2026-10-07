@@ -169,13 +169,6 @@ export async function importTemplate(
   const dir = path.join(DATA_DIR, serverName);
   await fs.mkdir(dir, { recursive: true });
   await downloadAndExtract(template.download, dir);
-  if (template.serverCfg && template.serverCfg.length > 0) {
-    await fs.writeFile(
-      path.join(dir, "server.cfg"),
-      template.serverCfg.join("\n") + "\n",
-      "utf-8"
-    );
-  }
   const record: ServerRecord = {
     ...server,
     type: template.label,
@@ -187,14 +180,25 @@ export async function importTemplate(
   return { ok: true, record };
 }
 
-/** Resolve a download URL: direct archive, or scrape an artifact listing for the latest tarball. */
+/** Resolve a download URL: direct archive, changelog JSON, or legacy HTML listing. */
 async function resolveDownload(url: string): Promise<string> {
   if (/\.(tar\.xz|tar\.gz|tgz)$/i.test(url)) return url;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Artifact listing responded ${res.status}.`);
-  const html = await res.text();
-  const hrefs = [...html.matchAll(/href="([^"]+\.tar\.xz)"/g)].map((m) => m[1]);
-  if (hrefs.length === 0) throw new Error("No server archive found in artifact listing.");
+  if (!res.ok) throw new Error(`Download source responded ${res.status}.`);
+  const text = await res.text();
+  // Changelog-style JSON (recommended_download / latest_download).
+  try {
+    const json = JSON.parse(text) as {
+      recommended_download?: unknown;
+      latest_download?: unknown;
+    };
+    const dl = json.recommended_download ?? json.latest_download;
+    if (typeof dl === "string" && dl) return dl;
+  } catch {
+    // Not JSON — fall through to HTML listing.
+  }
+  const hrefs = [...text.matchAll(/href="([^"]+\.tar\.xz)"/g)].map((m) => m[1]);
+  if (hrefs.length === 0) throw new Error("No server archive found at download source.");
   return new URL(hrefs[hrefs.length - 1], url).toString();
 }
 

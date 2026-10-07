@@ -7,7 +7,6 @@ export interface GameTemplate {
   label: string;
   description: string;
   download: string;
-  serverCfg?: string[];
   start?: string;
 }
 

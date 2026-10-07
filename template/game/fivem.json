@@ -3,14 +3,6 @@
   "game": "GTA V",
   "label": "FiveM Server",
   "description": "CFX FiveM FXServer for Linux. Import downloads the server files, Start runs them.",
-  "download": "https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/",
-  "serverCfg": [
-    "endpoint_add_tcp \"0.0.0.0:30120\"",
-    "endpoint_add_udp \"0.0.0.0:30120\"",
-    "sv_licenseKey \"CHANGE_ME\"",
-    "sv_hostname \"ForzaPanel FiveM\"",
-    "sv_maxclients 32",
-    "ensure txAdmin"
-  ],
+  "download": "https://changelogs-live.fivem.net/api/changelog/versions/linux/server",
   "start": "bash run.sh +exec server.cfg"
 }
