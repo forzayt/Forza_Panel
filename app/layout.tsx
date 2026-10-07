@@ -1,9 +1,22 @@
+import Providers from "@/app/providers";
+import { cn } from "@/utils/cn";
 import type { Metadata } from "next";
+import { ThemeProvider } from "next-themes";
+import { Inter } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
-  title: "ForzaPanel — Local Server",
-  description: "Lightweight server control panel. Phase 1: live system overview.",
+  title: {
+    template: "%s | ForzaPanel — Local Server",
+    default: "ForzaPanel — Local Server",
+  },
+  description: "Lightweight server control panel. Live system overview.",
 };
 
 export default function RootLayout({
@@ -12,9 +25,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
-        {children}
+    <html
+      suppressHydrationWarning
+      lang="en"
+      className={cn("h-full antialiased", inter.className)}
+    >
+      <body className="h-full bg-background-gray-secondary_alt_2">
+        <ThemeProvider defaultTheme="light" enableSystem>
+          <Providers>{children}</Providers>
+        </ThemeProvider>
+        <Toaster />
       </body>
     </html>
   );

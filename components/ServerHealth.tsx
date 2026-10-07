@@ -1,3 +1,4 @@
+import { Card, CardTitle } from "@/components/tailgrids/core/card";
 import MiniSpark from "./MiniSpark";
 
 // Placeholder sparklines for metrics we don't track live yet (UI only).
@@ -14,7 +15,13 @@ interface ServerHealthProps {
   memHistory: number[];
 }
 
-export default function ServerHealth({ cpu, memory, disk, cpuHistory, memHistory }: ServerHealthProps) {
+export default function ServerHealth({
+  cpu,
+  memory,
+  disk,
+  cpuHistory,
+  memHistory,
+}: ServerHealthProps) {
   const rows = [
     { label: "CPU", value: `${cpu.toFixed(0)}%`, data: cpuHistory, color: "#4ade80", bars: false },
     { label: "Memory", value: `${memory.toFixed(0)}%`, data: memHistory, color: "#60a5fa", bars: false },
@@ -25,16 +32,18 @@ export default function ServerHealth({ cpu, memory, disk, cpuHistory, memHistory
   ];
 
   return (
-    <section className="rounded-xl border border-white/5 bg-[#111832]/80 p-4">
+    <Card>
       <div className="mb-3 flex items-center gap-2">
-        <span className="text-sm text-slate-400">⚡</span>
-        <h2 className="text-[13px] font-semibold text-white">Server Health</h2>
+        <span className="text-sm text-text-tertiary">⚡</span>
+        <CardTitle>Server Health</CardTitle>
       </div>
       <div className="space-y-3">
         {rows.map((r) => (
           <div key={r.label} className="flex items-center gap-2 text-xs">
-            <span className="w-24 shrink-0 truncate text-slate-400">▫ {r.label}</span>
-            <span className="w-20 shrink-0 text-right font-mono-tech text-[11px] text-slate-200">{r.value}</span>
+            <span className="w-24 shrink-0 truncate text-text-tertiary">▫ {r.label}</span>
+            <span className="w-20 shrink-0 text-right font-mono-tech text-[11px] text-text-primary">
+              {r.value}
+            </span>
             <div className="flex flex-1 justify-end">
               {r.bars ? (
                 <MiniSpark data={DEMO_NET_BARS} color={r.color} width={64} height={20} bars />
@@ -45,6 +54,6 @@ export default function ServerHealth({ cpu, memory, disk, cpuHistory, memHistory
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

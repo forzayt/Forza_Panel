@@ -51,8 +51,8 @@ export default function AreaChart({ data, color, id, xLabels = [], height = 190 
           const y = 4 + (1 - g / 100) * (H - PAD_B - 8);
           return (
             <g key={g}>
-              <line x1={PAD_L} x2={W - 4} y1={y} y2={y} stroke="#1e293b" strokeWidth="1" strokeDasharray={g === 0 ? "" : "3 4"} opacity="0.7" />
-              <text x={2} y={y + 3} fill="#475569" fontSize="10">{g}%</text>
+              <line x1={PAD_L} x2={W - 4} y1={y} y2={y} stroke="var(--color-border-primary, #1e293b)" strokeWidth="1" strokeDasharray={g === 0 ? "" : "3 4"} opacity="0.7" />
+              <text x={2} y={y + 3} fill="var(--color-text-tertiary, #475569)" fontSize="10">{g}%</text>
             </g>
           );
         })}
@@ -60,7 +60,7 @@ export default function AreaChart({ data, color, id, xLabels = [], height = 190 
         {line && <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />}
       </svg>
       {xLabels.length > 0 && (
-        <div className="flex justify-between pl-9 pr-1 font-mono-tech text-[10px] text-slate-500">
+        <div className="flex justify-between pl-9 pr-1 font-mono-tech text-[10px] text-text-tertiary">
           {xLabels.map((l) => (
             <span key={l}>{l}</span>
           ))}

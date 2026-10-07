@@ -1,3 +1,14 @@
+import { Badge } from "@/components/tailgrids/core/badge";
+import { Button } from "@/components/tailgrids/core/button";
+import { Card, CardHeader, CardTitle } from "@/components/tailgrids/core/card";
+import {
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRoot,
+  TableRow,
+} from "@/components/tailgrids/core/table";
+
 // Static placeholder rows — real service discovery comes in a later phase.
 const SERVICES = [
   { icon: "M", iconBg: "bg-amber-700/40 text-amber-300", name: "minecraft", type: "Game Server", cpu: "2.4%", mem: "1.2 GB", uptime: "3d 2h" },
@@ -9,64 +20,72 @@ const SERVICES = [
 
 export default function ServicesTable() {
   return (
-    <section className="rounded-xl border border-white/5 bg-[#111832]/80 p-4">
-      <div className="mb-2 flex items-center justify-between">
+    <Card>
+      <CardHeader className="mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-400">🧊</span>
-          <h2 className="text-[13px] font-semibold text-white">Running Services</h2>
+          <span className="text-sm text-text-tertiary">🧊</span>
+          <CardTitle>Running Services</CardTitle>
         </div>
-        <button className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/5">
+        <Button variant="primary" appearance="outline" size="xs">
           View All
-        </button>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] text-left text-xs">
-          <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-slate-500">
-              <th className="py-2 pr-2 font-medium">Name</th>
-              <th className="py-2 pr-2 font-medium">Type</th>
-              <th className="py-2 pr-2 font-medium">Status</th>
-              <th className="py-2 pr-2 font-medium">CPU</th>
-              <th className="py-2 pr-2 font-medium">Memory</th>
-              <th className="py-2 pr-2 font-medium">Uptime</th>
-              <th className="py-2 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {SERVICES.map((s) => (
-              <tr key={s.name} className="border-t border-white/5">
-                <td className="py-2.5 pr-2">
-                  <span className="flex items-center gap-2 font-mono-tech text-slate-200">
-                    <span className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold ${s.iconBg}`}>
-                      {s.icon}
-                    </span>
-                    {s.name}
+        </Button>
+      </CardHeader>
+      <TableRoot>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>CPU</TableHead>
+            <TableHead>Memory</TableHead>
+            <TableHead>Uptime</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <tbody>
+          {SERVICES.map((s) => (
+            <TableRow key={s.name}>
+              <TableCell>
+                <span className="flex items-center gap-2 font-mono-tech">
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold ${s.iconBg}`}
+                  >
+                    {s.icon}
                   </span>
-                </td>
-                <td className="py-2.5 pr-2 text-slate-400">{s.type}</td>
-                <td className="py-2.5 pr-2">
-                  <span className="flex items-center gap-1.5 text-emerald-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    Running
-                  </span>
-                </td>
-                <td className="py-2.5 pr-2 font-mono-tech text-slate-300">{s.cpu}</td>
-                <td className="py-2.5 pr-2 font-mono-tech text-slate-300">{s.mem}</td>
-                <td className="py-2.5 pr-2 font-mono-tech text-slate-400">{s.uptime}</td>
-                <td className="py-2.5">
-                  <span className="flex gap-1.5">
-                    {["■", "↻", "⋯"].map((a) => (
-                      <button key={a} className="flex h-6 w-6 items-center justify-center rounded-md bg-white/5 text-[11px] text-slate-300 hover:bg-white/10">
-                        {a}
-                      </button>
-                    ))}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                  {s.name}
+                </span>
+              </TableCell>
+              <TableCell className="text-text-secondary">{s.type}</TableCell>
+              <TableCell>
+                <Badge color="success" size="sm">
+                  Running
+                </Badge>
+              </TableCell>
+              <TableCell className="font-mono-tech">{s.cpu}</TableCell>
+              <TableCell className="font-mono-tech">{s.mem}</TableCell>
+              <TableCell className="font-mono-tech text-text-secondary">
+                {s.uptime}
+              </TableCell>
+              <TableCell>
+                <span className="flex gap-1.5">
+                  {["■", "↻", "⋯"].map((a) => (
+                    <Button
+                      key={a}
+                      variant="primary"
+                      appearance="ghost"
+                      size="xs"
+                      iconOnly
+                      aria-label={a}
+                    >
+                      {a}
+                    </Button>
+                  ))}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </tbody>
+      </TableRoot>
+    </Card>
   );
 }
