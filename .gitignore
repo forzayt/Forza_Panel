@@ -1,6 +1,9 @@
 # dependencies
 /node_modules
 
+# server data (created at runtime via Add Server)
+/data/
+
 # next.js
 /.next/
 /out/

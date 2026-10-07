@@ -1,0 +1,93 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+
+export interface ServerRecord {
+  name: string;
+  type: string;
+  status: "running" | "stopped" | "unknown";
+  createdAt: string;
+}
+
+const DATA_DIR = path.join(process.cwd(), "data");
+const META_FILE = "server.json";
+
+// Letters, numbers, dashes, underscores. Must start alphanumeric, max 32 chars.
+const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9-_]{0,31}$/;
+
+export function isValidServerName(name: string): boolean {
+  return NAME_RE.test(name);
+}
+
+async function readMeta(dir: string, name: string): Promise<ServerRecord> {
+  try {
+    const raw = await fs.readFile(path.join(dir, META_FILE), "utf-8");
+    const meta = JSON.parse(raw) as Partial<ServerRecord>;
+    return {
+      name,
+      type: typeof meta.type === "string" ? meta.type : "Server",
+      status: meta.status === "running" || meta.status === "stopped" ? meta.status : "unknown",
+      createdAt:
+        typeof meta.createdAt === "string" ? meta.createdAt : new Date(0).toISOString(),
+    };
+  } catch {
+    // Folder exists without metadata — synthesize a record.
+    return { name, type: "Server", status: "unknown", createdAt: new Date(0).toISOString() };
+  }
+}
+
+export async function listServers(): Promise<ServerRecord[]> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  const entries = await fs.readdir(DATA_DIR, { withFileTypes: true });
+  const records: ServerRecord[] = [];
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    records.push(await readMeta(path.join(DATA_DIR, e.name), e.name));
+  }
+  records.sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt) || a.name.localeCompare(b.name)
+  );
+  return records;
+}
+
+export async function getServer(name: string): Promise<ServerRecord | null> {
+  if (!isValidServerName(name)) return null;
+  try {
+    const stat = await fs.stat(path.join(DATA_DIR, name));
+    if (!stat.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  return readMeta(path.join(DATA_DIR, name), name);
+}
+
+export async function createServer(
+  name: string
+): Promise<{ record: ServerRecord } | { error: string; status: number }> {
+  const clean = name.trim();
+  if (!isValidServerName(clean)) {
+    return {
+      error:
+        "Server name must start with a letter or number and contain only letters, numbers, dashes or underscores (max 32 chars).",
+      status: 400,
+    };
+  }
+  const dir = path.join(DATA_DIR, clean);
+  try {
+    const stat = await fs.stat(dir);
+    if (stat.isDirectory()) {
+      return { error: `Server "${clean}" already exists.`, status: 409 };
+    }
+    return { error: `"${clean}" already exists and is not a folder.`, status: 409 };
+  } catch {
+    // Does not exist — safe to create.
+  }
+  await fs.mkdir(dir, { recursive: true });
+  const record: ServerRecord = {
+    name: clean,
+    type: "Server",
+    status: "stopped",
+    createdAt: new Date().toISOString(),
+  };
+  await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
+  return { record };
+}
