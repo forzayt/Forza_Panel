@@ -137,10 +137,12 @@ export default function ServerDetailPage() {
       });
       const json = (await res.json().catch(() => null)) as {
         error?: string;
+        details?: string;
       } | null;
       if (!res.ok) {
+        const reason = json?.details || json?.error || `Import failed (${res.status}).`;
+        toast.error(reason.length > 220 ? reason.slice(0, 220) + "…" : reason);
         setIsInstalling(false);
-        toast.error(json?.error ?? `Import failed (${res.status}).`);
         return;
       }
       // Keep the animation visible for a full 5 seconds.

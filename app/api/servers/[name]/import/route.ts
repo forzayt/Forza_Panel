@@ -19,6 +19,7 @@ export async function POST(
     }
     return NextResponse.json({ ok: true, server: result.record });
   } catch (err) {
+    console.error("[import]", err);
     return NextResponse.json(
       { error: "Failed to import template", details: String(err) },
       { status: 500 }

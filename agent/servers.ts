@@ -1,13 +1,9 @@
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { getTemplate } from "./templates";
-
-const execFileAsync = promisify(execFile);
 
 export interface ServerRecord {
   name: string;
@@ -214,10 +210,32 @@ async function downloadAndExtract(url: string, dir: string): Promise<void> {
     fsSync.createWriteStream(archivePath)
   );
   try {
-    await execFileAsync("tar", ["-xf", archivePath, "-C", dir]);
+    // bsdtar exit 1 = warnings (e.g. Linux symlinks/device nodes skipped on
+    // Windows) with files still extracted. Only 2+ is a fatal failure.
+    const { code, stderr } = await runTar(archivePath, dir);
+    if (code > 1) {
+      const tail = stderr.trim().split("\n").slice(-5).join("\n");
+      throw new Error(`Extract failed (exit ${code})${tail ? `: ${tail}` : "."}`);
+    }
   } finally {
     await fs.rm(archivePath, { force: true });
   }
+}
+
+function runTar(archivePath: string, dir: string): Promise<{ code: number; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn("tar", ["-xf", archivePath, "-C", dir]);
+    let stderr = "";
+    child.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.on("error", (err) => {
+      resolve({ code: 2, stderr: `tar: ${err.message}` });
+    });
+    child.on("close", (code) => {
+      resolve({ code: code ?? 2, stderr });
+    });
+  });
 }
 
 export async function startServer(
