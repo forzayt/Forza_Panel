@@ -5,7 +5,6 @@ export interface GameTemplate {
   id: string;
   game: string;
   label: string;
-  version: string;
   description: string;
   ports?: unknown;
   artifacts?: unknown;
@@ -20,7 +19,6 @@ export interface TemplateSummary {
   id: string;
   game: string;
   label: string;
-  version: string;
   description: string;
 }
 
@@ -45,7 +43,6 @@ export async function listTemplates(): Promise<TemplateSummary[]> {
         id: t.id,
         game: typeof t.game === "string" ? t.game : "",
         label: typeof t.label === "string" ? t.label : t.id,
-        version: typeof t.version === "string" ? t.version : "",
         description: typeof t.description === "string" ? t.description : "",
       });
     } catch {

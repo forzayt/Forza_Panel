@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Dialog as AriaDialog } from "react-aria-components";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Button } from "@/components/tailgrids/core/button";
@@ -17,8 +16,6 @@ import {
 } from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
-import { OverlayWrapper } from "@/components/tailgrids/core/overlay";
-import { Popover } from "@/components/tailgrids/core/popover";
 import { Skeleton } from "@/components/tailgrids/core/skeleton";
 import type { ServerRecord } from "@/agent/servers";
 import type { TemplateSummary } from "@/agent/templates";
@@ -41,6 +38,7 @@ export default function ServerDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<TemplateSummary[] | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [tplQuery, setTplQuery] = useState("");
   const [importingId, setImportingId] = useState<string | null>(null);
 
@@ -91,7 +89,12 @@ export default function ServerDetailPage() {
     );
   });
 
-  const handleImport = async (templateId: string, close: () => void) => {
+  const openImport = () => {
+    setTplQuery("");
+    setIsImportOpen(true);
+  };
+
+  const handleImport = async (templateId: string) => {
     setImportingId(templateId);
     try {
       const res = await fetch(`/api/servers/${encodeURIComponent(name)}/import`, {
@@ -107,7 +110,7 @@ export default function ServerDetailPage() {
         return;
       }
       toast.success(`Template imported into "${name}".`);
-      close();
+      setIsImportOpen(false);
       fetchServer();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Import failed.");
@@ -195,8 +198,8 @@ export default function ServerDetailPage() {
           </div>
           {server && (
             <div className="flex shrink-0 items-center gap-2">
-              <OverlayWrapper>
-                <Button variant="success" appearance="fill" size="md">
+              {server.type === "Server" && (
+                <Button variant="success" appearance="fill" size="md" onPress={openImport}>
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -211,59 +214,7 @@ export default function ServerDetailPage() {
                   </svg>
                   Import
                 </Button>
-                <Popover placement="bottom end" className="w-80 p-2">
-                  <AriaDialog aria-label="Import template" className="outline-none">
-                    {({ close }) => (
-                      <div>
-                        <Input
-                          value={tplQuery}
-                          onChange={(e) => setTplQuery(e.target.value)}
-                          placeholder="Search templates…"
-                          aria-label="Search templates"
-                          autoFocus
-                          className="w-full"
-                        />
-                        <div className="scrollbar-thin mt-2 max-h-64 overflow-y-auto">
-                          {templates === null && (
-                            <p className="px-3 py-4 text-center text-sm text-text-tertiary">
-                              Loading templates…
-                            </p>
-                          )}
-                          {templates !== null && filteredTemplates.length === 0 && (
-                            <p className="px-3 py-4 text-center text-sm text-text-tertiary">
-                              No templates found.
-                            </p>
-                          )}
-                          {filteredTemplates.map((t) => (
-                            <button
-                              key={t.id}
-                              onClick={() => handleImport(t.id, close)}
-                              disabled={importingId !== null}
-                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary disabled:opacity-60"
-                            >
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
-                                {t.label.charAt(0).toUpperCase()}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-medium text-text-primary">
-                                  {t.label}
-                                </span>
-                                <span className="block truncate text-xs text-text-tertiary">
-                                  {t.game}
-                                  {t.version ? ` · v${t.version}` : ""}
-                                </span>
-                              </span>
-                              <span className="shrink-0 text-xs text-text-tertiary">
-                                {importingId === t.id ? "…" : "›"}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </AriaDialog>
-                </Popover>
-              </OverlayWrapper>
+              )}
               <Button variant="danger" appearance="outline" size="md" onPress={openDelete}>
                 <svg
                   viewBox="0 0 24 24"
@@ -380,6 +331,72 @@ export default function ServerDetailPage() {
             isDisabled={isDeleting || confirmText.trim() !== expectedConfirm}
           >
             {isDeleting ? "Deleting…" : "Delete Server"}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        isOpen={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        aria-label="Import template"
+      >
+        <DialogHeader>
+          <DialogTitle>Import Template</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-3">
+            <Input
+              value={tplQuery}
+              onChange={(e) => setTplQuery(e.target.value)}
+              placeholder="Search templates…"
+              aria-label="Search templates"
+              autoFocus
+              className="w-full"
+            />
+            <div className="scrollbar-thin max-h-64 overflow-y-auto">
+              {templates === null && (
+                <p className="px-3 py-4 text-center text-sm text-text-tertiary">
+                  Loading templates…
+                </p>
+              )}
+              {templates !== null && filteredTemplates.length === 0 && (
+                <p className="px-3 py-4 text-center text-sm text-text-tertiary">
+                  No templates found.
+                </p>
+              )}
+              {filteredTemplates.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => handleImport(t.id)}
+                  disabled={importingId !== null}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary disabled:opacity-60"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
+                    {t.label.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-text-primary">
+                      {t.label}
+                    </span>
+                                <span className="block truncate text-xs text-text-tertiary">
+                                  {t.game}
+                                </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-text-tertiary">
+                    {importingId === t.id ? "…" : "›"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            variant="primary"
+            appearance="outline"
+            onPress={() => setIsImportOpen(false)}
+          >
+            Cancel
           </Button>
         </DialogFooter>
       </Dialog>

@@ -2,7 +2,6 @@
   "id": "fivem",
   "game": "GTA V",
   "label": "FiveM Server",
-  "version": "1.0.0",
   "description": "CFX FiveM FXServer (server-data + txAdmin). Import downloads the server artifacts, writes a starter server.cfg and prepares the txData folder.",
   "artifacts": {
     "windows": "https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/",
