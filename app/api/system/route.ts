@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSystemInfo } from "@/lib/system";
+import { getSystemInfo } from "@/agent/system";
 
 export const dynamic = "force-dynamic";
 

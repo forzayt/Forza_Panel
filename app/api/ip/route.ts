@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLocalIp } from "@/lib/system";
+import { getLocalIp } from "@/agent/system";
 
 export const dynamic = "force-dynamic";
 

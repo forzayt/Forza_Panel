@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServer, isValidServerName } from "@/lib/servers";
+import { getServer, isValidServerName } from "@/agent/servers";
 
 export const dynamic = "force-dynamic";
 

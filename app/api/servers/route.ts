@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServer, listServers } from "@/lib/servers";
+import { createServer, listServers } from "@/agent/servers";
 
 export const dynamic = "force-dynamic";
 

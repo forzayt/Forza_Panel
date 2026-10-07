@@ -7,7 +7,7 @@ import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Card, CardTitle } from "@/components/tailgrids/core/card";
 import { Skeleton } from "@/components/tailgrids/core/skeleton";
-import type { ServerRecord } from "@/lib/servers";
+import type { ServerRecord } from "@/agent/servers";
 
 function formatDateTime(iso: string): string {
   const t = new Date(iso).getTime();
