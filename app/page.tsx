@@ -113,6 +113,7 @@ function ChartPanel({
 export default function DashboardPage() {
   const [data, setData] = useState<SystemInfo | null>(null);
   const [ip, setIp] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [memHistory, setMemHistory] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +152,17 @@ export default function DashboardPage() {
   const mem = data?.memory.usage ?? 0;
   const disk = data?.disk.usage ?? 0;
 
+  const copyIp = async () => {
+    if (!ip) return;
+    try {
+      await navigator.clipboard.writeText(ip);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable — no-op.
+    }
+  };
+
   const cpuTrend = cpuHistory.length > 5 ? cpu - cpuHistory[0] : 0;
 
   const now = Date.now();
@@ -182,6 +194,25 @@ export default function DashboardPage() {
             <span className="hidden h-4 w-px bg-border-primary sm:block" />
             <span className="hidden items-center gap-1.5 font-mono-tech text-text-tertiary sm:flex">
               {ip ?? "…"}
+              {ip && (
+                <button
+                  onClick={copyIp}
+                  aria-label="Copy IP address"
+                  title={copied ? "Copied!" : "Copy IP address"}
+                  className="rounded p-0.5 text-text-tertiary transition-colors hover:text-text-primary"
+                >
+                  {copied ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 text-green-600">
+                      <path d="M4 12.5l5 5L20 6.5" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3">
+                      <rect x="9" y="9" width="12" height="12" rx="2" />
+                      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                    </svg>
+                  )}
+                </button>
+              )}
             </span>
           </Card>
         </div>
