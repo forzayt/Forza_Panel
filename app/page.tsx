@@ -7,9 +7,7 @@ import { Card, CardHeader, CardTitle } from "@/components/tailgrids/core/card";
 import { Progress } from "@/components/tailgrids/core/progress";
 import AreaChart from "@/components/AreaChart";
 import MiniSpark from "@/components/MiniSpark";
-import ServerHealth from "@/components/ServerHealth";
 import ServicesTable from "@/components/ServicesTable";
-import ActivityFeed from "@/components/ActivityFeed";
 import StatusDot from "@/components/StatusDot";
 
 interface SystemInfo {
@@ -237,9 +235,8 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Main grid */}
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
-          <div className="min-w-0 space-y-4">
+        {/* Main content */}
+        <div className="min-w-0 space-y-4">
             <div className="grid gap-4 lg:grid-cols-2">
               <ChartPanel
                 icon="⚙"
@@ -319,20 +316,7 @@ export default function DashboardPage() {
             </div>
 
             <ServicesTable />
-          </div>
-
-          <div className="space-y-4">
-            <ServerHealth
-              cpu={cpu}
-              memory={mem}
-              disk={disk}
-              cpuHistory={cpuHistory}
-              memHistory={memHistory}
-            />
-            <ActivityFeed />
-          </div>
         </div>
-
       </div>
     </AppShell>
   );
