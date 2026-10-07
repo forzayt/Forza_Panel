@@ -20,10 +20,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         }}
         className="shrink-0 overflow-hidden"
       >
-        <Sidebar
-          isSidebarOpen={isExpanded}
-          toggleSidebar={() => setIsExpanded((prev) => !prev)}
-        />
+        <Sidebar isSidebarOpen={isExpanded} />
       </aside>
 
       {/* Main content column */}

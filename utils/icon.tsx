@@ -135,7 +135,7 @@ export const LogoWithText = (props: IconProps) => {
                 fill='#27272A'
                 fontFamily='Inter, ui-sans-serif, system-ui, sans-serif'
             >
-                ForzaPanel
+                Forza Panel
             </text>
             <defs>
                 <linearGradient
@@ -193,7 +193,7 @@ export const LogoWithTextDark = (props: IconProps) => {
                 fill='#fff'
                 fontFamily='Inter, ui-sans-serif, system-ui, sans-serif'
             >
-                ForzaPanel
+                Forza Panel
             </text>
             <defs>
                 <linearGradient

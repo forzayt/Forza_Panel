@@ -9,19 +9,15 @@ import { usePathname } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import type { Key } from 'react-aria-components';
 import { NAV_DATA } from './data';
-import { CloseIcon, SidebarExpandedIcon, ThreeDots } from './icon';
+import { ThreeDots } from './icon';
 import NavItem from './nav-item';
 import { findActiveGroupKey } from './utils';
 
 export default function Sidebar({
     isSidebarOpen,
-    toggleSidebar,
-    isMobileSheet = false,
     onItemClick,
 }: {
     isSidebarOpen: boolean;
-    toggleSidebar: () => void;
-    isMobileSheet?: boolean;
     onItemClick?: () => void;
 }) {
     const pathname = usePathname();
@@ -61,21 +57,6 @@ export default function Sidebar({
                         <Logo />
                     )}
                 </Link>
-
-                <button
-                    onClick={() => toggleSidebar()}
-                    className={cn(
-                        'p-1.5 transition-colors',
-                        isMobileSheet
-                            ? 'rounded-lg text-icon-tertiary hover:bg-background-gray-primary hover:text-text-primary'
-                            : 'text-icon-tertiary hover:text-text-secondary',
-                    )}
-                    aria-label={
-                        isMobileSheet ? 'Close sidebar' : 'Toggle sidebar'
-                    }
-                >
-                    {isMobileSheet ? <CloseIcon /> : <SidebarExpandedIcon />}
-                </button>
             </div>
 
             {/* Navigation */}
