@@ -6,7 +6,6 @@ import { Badge } from "@/components/tailgrids/core/badge";
 import { Card, CardHeader, CardTitle } from "@/components/tailgrids/core/card";
 import { Progress } from "@/components/tailgrids/core/progress";
 import AreaChart from "@/components/AreaChart";
-import ServicesTable from "@/components/ServicesTable";
 import StatusDot from "@/components/StatusDot";
 
 interface SystemInfo {
@@ -249,85 +248,83 @@ export default function DashboardPage() {
 
         {/* Main content */}
         <div className="min-w-0 space-y-4">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <ChartPanel
-                icon="⚙"
-                title="CPU Usage"
-                color="#4ade80"
-                gradientId="cpuGrad"
-                data={cpuHistory}
-                xLabels={xLabels}
-              />
-              <ChartPanel
-                icon="▤"
-                title="Memory Usage"
-                color="#60a5fa"
-                gradientId="memGrad"
-                data={memHistory}
-                xLabels={xLabels}
-              />
-            </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartPanel
+              icon="⚙"
+              title="CPU Usage"
+              color="#4ade80"
+              gradientId="cpuGrad"
+              data={cpuHistory}
+              xLabels={xLabels}
+            />
+            <ChartPanel
+              icon="▤"
+              title="Memory Usage"
+              color="#60a5fa"
+              gradientId="memGrad"
+              data={memHistory}
+              xLabels={xLabels}
+            />
+          </div>
 
-            {/* Info cards */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                {
-                  icon: "⚙",
-                  label: "CPU",
-                  lines: [
-                    data?.cpu.model ?? "…",
-                    data ? `${data.cpu.cores} Logical processors` : "…",
-                    data?.system.architecture ?? "…",
-                  ],
-                },
-                {
-                  icon: "▤",
-                  label: "Memory",
-                  lines: [
-                    data ? `${data.memory.total.toFixed(0)} GB` : "…",
-                    `${mem.toFixed(0)}% Used`,
-                    data
-                      ? `${data.memory.used.toFixed(1)} GB / ${data.memory.total.toFixed(1)} GB`
-                      : "…",
-                  ],
-                },
-                {
-                  icon: "🖴",
-                  label: "Storage",
-                  lines: [
-                    data ? `${data.disk.total.toFixed(0)} GB` : "…",
-                    `${disk.toFixed(0)}% Used`,
-                    data
-                      ? `${data.disk.used.toFixed(0)} GB / ${data.disk.total.toFixed(0)} GB`
-                      : "…",
-                  ],
-                },
-                {
-                  icon: "🖥",
-                  label: "System",
-                  lines: [
-                    data ? `${data.system.platform} ${data.system.architecture}` : "…",
-                    data?.system.hostname ?? "…",
-                    data ? `Uptime: ${formatUptime(data.system.uptime)}` : "…",
-                  ],
-                },
-              ].map((c) => (
-                <Card key={c.label} className="text-xs">
-                  <p className="mb-1.5 flex items-center gap-1.5 text-text-tertiary">
-                    <span>{c.icon}</span> {c.label}
-                  </p>
-                  <p className="truncate font-medium text-text-primary" title={c.lines[0]}>
-                    {c.lines[0]}
-                  </p>
-                  <p className="mt-1 truncate text-text-secondary">{c.lines[1]}</p>
-                  <p className="mt-0.5 truncate font-mono-tech text-[11px] text-text-tertiary">
-                    {c.lines[2]}
-                  </p>
-                </Card>
-              ))}
-            </div>
-
-            <ServicesTable />
+          {/* Info cards */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                icon: "⚙",
+                label: "CPU",
+                lines: [
+                  data?.cpu.model ?? "…",
+                  data ? `${data.cpu.cores} Logical processors` : "…",
+                  data?.system.architecture ?? "…",
+                ],
+              },
+              {
+                icon: "▤",
+                label: "Memory",
+                lines: [
+                  data ? `${data.memory.total.toFixed(0)} GB` : "…",
+                  `${mem.toFixed(0)}% Used`,
+                  data
+                    ? `${data.memory.used.toFixed(1)} GB / ${data.memory.total.toFixed(1)} GB`
+                    : "…",
+                ],
+              },
+              {
+                icon: "🖴",
+                label: "Storage",
+                lines: [
+                  data ? `${data.disk.total.toFixed(0)} GB` : "…",
+                  `${disk.toFixed(0)}% Used`,
+                  data
+                    ? `${data.disk.used.toFixed(0)} GB / ${data.disk.total.toFixed(0)} GB`
+                    : "…",
+                ],
+              },
+              {
+                icon: "🖥",
+                label: "System",
+                lines: [
+                  data ? `${data.system.platform} ${data.system.architecture}` : "…",
+                  data?.system.hostname ?? "…",
+                  data ? `Uptime: ${formatUptime(data.system.uptime)}` : "…",
+                ],
+              },
+            ].map((c) => (
+              <Card key={c.label} className="text-xs">
+                <p className="mb-1.5 flex items-center gap-1.5 text-text-tertiary">
+                  <span>{c.icon}</span> {c.label}
+                </p>
+                <p className="truncate font-medium text-text-primary" title={c.lines[0]}>
+                  {c.lines[0]}
+                </p>
+                <p className="mt-1 truncate text-text-secondary">{c.lines[1]}</p>
+                <p className="mt-0.5 truncate font-mono-tech text-[11px] text-text-tertiary">
+                  {c.lines[2]}
+                </p>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     </AppShell>
