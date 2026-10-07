@@ -99,7 +99,6 @@ function ChartPanel({
           <Badge color="success" size="sm">
             Live
           </Badge>
-          <span className="rounded border border-card-border px-1.5 py-0.5">1 minute ▾</span>
         </div>
       </CardHeader>
       <AreaChart data={data} color={color} id={gradientId} xLabels={xLabels} />

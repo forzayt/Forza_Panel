@@ -41,6 +41,7 @@ export default function ServerDetailPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [tplQuery, setTplQuery] = useState("");
   const [importingId, setImportingId] = useState<string | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<TemplateSummary | null>(null);
 
   const fetchServer = useCallback(async () => {
     try {
@@ -91,6 +92,7 @@ export default function ServerDetailPage() {
 
   const openImport = () => {
     setTplQuery("");
+    setPendingTemplate(null);
     setIsImportOpen(true);
   };
 
@@ -337,68 +339,115 @@ export default function ServerDetailPage() {
 
       <Dialog
         isOpen={isImportOpen}
-        onOpenChange={setIsImportOpen}
+        onOpenChange={(open) => {
+          setIsImportOpen(open);
+          if (!open) setPendingTemplate(null);
+        }}
         aria-label="Import template"
       >
         <DialogHeader>
-          <DialogTitle>Import Template</DialogTitle>
+          <DialogTitle>
+            {pendingTemplate ? "Confirm Import" : "Import Template"}
+          </DialogTitle>
         </DialogHeader>
-        <DialogBody>
-          <div className="space-y-3">
-            <Input
-              value={tplQuery}
-              onChange={(e) => setTplQuery(e.target.value)}
-              placeholder="Search templates…"
-              aria-label="Search templates"
-              autoFocus
-              className="w-full"
-            />
-            <div className="scrollbar-thin max-h-64 overflow-y-auto">
-              {templates === null && (
-                <p className="px-3 py-4 text-center text-sm text-text-tertiary">
-                  Loading templates…
+        {pendingTemplate ? (
+          <>
+            <DialogBody>
+              <div className="space-y-2">
+                <p className="text-sm text-text-secondary">
+                  You selected{" "}
+                  <span className="font-semibold text-text-primary">
+                    {pendingTemplate.label}
+                  </span>
+                  .
                 </p>
-              )}
-              {templates !== null && filteredTemplates.length === 0 && (
-                <p className="px-3 py-4 text-center text-sm text-text-tertiary">
-                  No templates found.
+                <p className="rounded-lg border border-button-error-outline-stroke bg-button-error-outline-background px-3 py-2 text-sm text-button-error-outline-text">
+                  This will install server files (
+                  <span className="font-mono-tech">server.cfg</span>,{" "}
+                  <span className="font-mono-tech">txData/</span>,{" "}
+                  <span className="font-mono-tech">resources/</span>) into{" "}
+                  <span className="font-mono-tech">
+                    data/servers/{name}/
+                  </span>
+                  . 
                 </p>
-              )}
-              {filteredTemplates.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => handleImport(t.id)}
-                  disabled={importingId !== null}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary disabled:opacity-60"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
-                    {t.label.charAt(0).toUpperCase()}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-text-primary">
-                      {t.label}
-                    </span>
-                                <span className="block truncate text-xs text-text-tertiary">
-                                  {t.game}
-                                </span>
-                  </span>
-                  <span className="shrink-0 text-xs text-text-tertiary">
-                    {importingId === t.id ? "…" : "›"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            variant="primary"
-            appearance="outline"
-            onPress={() => setIsImportOpen(false)}
-          >
-            Cancel
-          </Button>
-        </DialogFooter>
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                variant="primary"
+                appearance="outline"
+                onPress={() => setPendingTemplate(null)}
+              >
+                Back
+              </Button>
+              <Button
+                variant="success"
+                appearance="fill"
+                onPress={() => handleImport(pendingTemplate.id)}
+                isDisabled={importingId !== null}
+              >
+                {importingId ? "Installing…" : "Install Files"}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogBody>
+              <div className="space-y-3">
+                <Input
+                  value={tplQuery}
+                  onChange={(e) => setTplQuery(e.target.value)}
+                  placeholder="Search templates…"
+                  aria-label="Search templates"
+                  autoFocus
+                  className="w-full"
+                />
+                <div className="scrollbar-thin max-h-64 overflow-y-auto">
+                  {templates === null && (
+                    <p className="px-3 py-4 text-center text-sm text-text-tertiary">
+                      Loading templates…
+                    </p>
+                  )}
+                  {templates !== null && filteredTemplates.length === 0 && (
+                    <p className="px-3 py-4 text-center text-sm text-text-tertiary">
+                      No templates found.
+                    </p>
+                  )}
+                  {filteredTemplates.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setPendingTemplate(t)}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
+                        {t.label.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-text-primary">
+                          {t.label}
+                        </span>
+                        <span className="block truncate text-xs text-text-tertiary">
+                          {t.game}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs text-text-tertiary">›</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                variant="primary"
+                appearance="outline"
+                onPress={() => setIsImportOpen(false)}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </Dialog>
     </AppShell>
   );
