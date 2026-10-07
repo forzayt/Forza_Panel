@@ -1,0 +1,2 @@
+# Keep shell scripts LF-only so shebangs work on Linux.
+*.sh text eol=lf
