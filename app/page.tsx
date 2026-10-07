@@ -325,11 +325,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <p className="pt-1 text-center text-[11px] text-text-tertiary">
-          CPU · Memory · Disk update live every 2 seconds from{" "}
-          <span className="font-mono-tech">GET /api/system</span> — Network, Services &amp;
-          Activity are UI previews for later phases
-        </p>
       </div>
     </AppShell>
   );
