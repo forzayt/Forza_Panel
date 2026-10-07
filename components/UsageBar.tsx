@@ -1,6 +1,6 @@
 interface UsageBarProps {
   value: number; // 0-100
-  tone?: "green" | "blue" | "amber" | "red";
+  tone?: "green" | "blue" | "amber" | "red" | "violet";
 }
 
 const tones: Record<NonNullable<UsageBarProps["tone"]>, string> = {
@@ -8,6 +8,7 @@ const tones: Record<NonNullable<UsageBarProps["tone"]>, string> = {
   blue: "bg-sky-500",
   amber: "bg-amber-500",
   red: "bg-red-500",
+  violet: "bg-violet-500",
 };
 
 export default function UsageBar({ value, tone = "green" }: UsageBarProps) {
