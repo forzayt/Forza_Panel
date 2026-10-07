@@ -60,7 +60,7 @@ export const NAV_DATA: NavSection[] = [
       },
       {
         title: "Files",
-        url: "#files",
+        url: "/files",
         icon: <AlphabetIcon />,
         items: [],
       },
