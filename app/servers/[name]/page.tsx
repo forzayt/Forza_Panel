@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/common/app-shell";
+import InstallLoader from "@/components/InstallLoader";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Button } from "@/components/tailgrids/core/button";
 import { Card, CardTitle } from "@/components/tailgrids/core/card";
@@ -42,6 +43,7 @@ export default function ServerDetailPage() {
   const [tplQuery, setTplQuery] = useState("");
   const [importingId, setImportingId] = useState<string | null>(null);
   const [pendingTemplate, setPendingTemplate] = useState<TemplateSummary | null>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
 
   const fetchServer = useCallback(async () => {
     try {
@@ -93,11 +95,14 @@ export default function ServerDetailPage() {
   const openImport = () => {
     setTplQuery("");
     setPendingTemplate(null);
+    setIsInstalling(false);
     setIsImportOpen(true);
   };
 
   const handleImport = async (templateId: string) => {
     setImportingId(templateId);
+    setIsInstalling(true);
+    const started = Date.now();
     try {
       const res = await fetch(`/api/servers/${encodeURIComponent(name)}/import`, {
         method: "POST",
@@ -108,13 +113,22 @@ export default function ServerDetailPage() {
         error?: string;
       } | null;
       if (!res.ok) {
+        setIsInstalling(false);
         toast.error(json?.error ?? `Import failed (${res.status}).`);
         return;
       }
+      // Keep the animation visible for a full 5 seconds.
+      const elapsed = Date.now() - started;
+      if (elapsed < 5000) {
+        await new Promise((r) => setTimeout(r, 5000 - elapsed));
+      }
       toast.success(`Template imported into "${name}".`);
       setIsImportOpen(false);
+      setPendingTemplate(null);
+      setIsInstalling(false);
       fetchServer();
     } catch (e) {
+      setIsInstalling(false);
       toast.error(e instanceof Error ? e.message : "Import failed.");
     } finally {
       setImportingId(null);
@@ -351,46 +365,45 @@ export default function ServerDetailPage() {
           </DialogTitle>
         </DialogHeader>
         {pendingTemplate ? (
-          <>
+          isInstalling ? (
             <DialogBody>
-              <div className="space-y-2">
-                <p className="text-sm text-text-secondary">
-                  You selected{" "}
-                  <span className="font-semibold text-text-primary">
-                    {pendingTemplate.label}
-                  </span>
-                  .
-                </p>
-                <p className="rounded-lg border border-button-error-outline-stroke bg-button-error-outline-background px-3 py-2 text-sm text-button-error-outline-text">
-                  This will install server files (
-                  <span className="font-mono-tech">server.cfg</span>,{" "}
-                  <span className="font-mono-tech">txData/</span>,{" "}
-                  <span className="font-mono-tech">resources/</span>) into{" "}
-                  <span className="font-mono-tech">
-                    data/servers/{name}/
-                  </span>
-                  . 
-                </p>
-              </div>
+              <InstallLoader />
             </DialogBody>
-            <DialogFooter>
-              <Button
-                variant="primary"
-                appearance="outline"
-                onPress={() => setPendingTemplate(null)}
-              >
-                Back
-              </Button>
-              <Button
-                variant="success"
-                appearance="fill"
-                onPress={() => handleImport(pendingTemplate.id)}
-                isDisabled={importingId !== null}
-              >
-                {importingId ? "Installing…" : "Install Files"}
-              </Button>
-            </DialogFooter>
-          </>
+          ) : (
+            <>
+              <DialogBody>
+                <div className="space-y-2">
+                  <p className="text-sm text-text-secondary">
+                    You selected{" "}
+                    <span className="font-semibold text-text-primary">
+                      {pendingTemplate.label}
+                    </span>
+                    .
+                  </p>
+                  <p className="rounded-lg border border-button-error-outline-stroke bg-button-error-outline-background px-3 py-2 text-sm text-button-error-outline-text">
+                    This will install server files into this folder.
+                  </p>
+                </div>
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  variant="primary"
+                  appearance="outline"
+                  onPress={() => setPendingTemplate(null)}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant="success"
+                  appearance="fill"
+                  onPress={() => handleImport(pendingTemplate.id)}
+                  isDisabled={importingId !== null}
+                >
+                  {importingId ? "Installing…" : "Install Files"}
+                </Button>
+              </DialogFooter>
+            </>
+          )
         ) : (
           <>
             <DialogBody>
