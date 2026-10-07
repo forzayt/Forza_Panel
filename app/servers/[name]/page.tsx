@@ -67,6 +67,9 @@ export default function ServerDetailPage() {
 
   useEffect(() => {
     fetchServer();
+    // Re-poll status so the badge self-corrects if the process dies.
+    const id = setInterval(fetchServer, 5000);
+    return () => clearInterval(id);
   }, [fetchServer]);
 
   const fetchTemplates = useCallback(async () => {

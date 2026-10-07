@@ -3,6 +3,7 @@
   "game": "GTA V",
   "label": "FiveM Server",
   "description": "CFX FiveM FXServer for Linux. Import downloads the server files, Start runs them.",
+  "platforms": ["linux"],
   "download": "https://changelogs-live.fivem.net/api/changelog/versions/linux/server",
   "start": "bash run.sh +exec server.cfg"
 }

@@ -8,6 +8,7 @@ export interface GameTemplate {
   description: string;
   download: string;
   start?: string;
+  platforms?: string[];
 }
 
 export interface TemplateSummary {

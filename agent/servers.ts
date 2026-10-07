@@ -257,6 +257,14 @@ export async function startServer(
   if (!cmd) {
     return { error: "No start command — import a template first.", status: 400 };
   }
+  if (template?.platforms && !template.platforms.includes(process.platform)) {
+    return {
+      error: `"${template.label}" needs ${template.platforms.join(
+        "/"
+      )} — this panel runs on ${process.platform}.`,
+      status: 400,
+    };
+  }
   const dir = path.join(DATA_DIR, name);
   let child;
   try {
@@ -272,6 +280,21 @@ export async function startServer(
   }
   if (!child.pid) {
     return { error: "Failed to start: no process id.", status: 500 };
+  }
+  // If the process dies instantly (bad binary, missing shell), fail loudly
+  // instead of reporting a fake "running" with an empty console.
+  await new Promise((r) => setTimeout(r, 2000));
+  if (child.exitCode !== null || !isAlive(child.pid)) {
+    procs.delete(name);
+    const tail = (await readServerLog(name, 10)) || "";
+    const record: ServerRecord = { ...server, status: "stopped", pid: undefined };
+    await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
+    return {
+      error: `Server exited immediately (code ${child.exitCode ?? "unknown"}).${
+        tail ? ` Log: ${tail.slice(-300)}` : " No output was produced."
+      }`,
+      status: 500,
+    };
   }
   child.unref();
   procs.set(name, child.pid);
