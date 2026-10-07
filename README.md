@@ -26,10 +26,8 @@ npm install
 npm run dev
 ```
 
-Open http://localhost (port 80 — no port in the URL). Port 80 needs elevated
-privileges, so run the terminal as Administrator on Windows (or inside WSL as
-root/with `sudo`). If that is a problem, use `npm run dev:3000` and open
-http://localhost:3000 instead.
+Open http://localhost:3000. No elevated privileges needed since 3000 is
+above 1024.
 
 ```bash
 npm run build   # production build (stop the dev server first — see below)
