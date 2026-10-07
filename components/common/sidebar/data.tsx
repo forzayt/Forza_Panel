@@ -11,7 +11,6 @@ import {
   TaskIcon,
   UserIcon,
   Widget4Icon,
-  WindowIcon,
 } from "./icon";
 
 interface NavSubItem {
@@ -45,12 +44,6 @@ export const NAV_DATA: NavSection[] = [
         title: "Servers",
         url: "/servers",
         icon: <TableIcon />,
-        items: [],
-      },
-      {
-        title: "Websites",
-        url: "#websites",
-        icon: <WindowIcon />,
         items: [],
       },
       {

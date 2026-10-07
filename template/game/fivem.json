@@ -1,0 +1,41 @@
+{
+  "id": "fivem",
+  "game": "GTA V",
+  "label": "FiveM Server",
+  "version": "1.0.0",
+  "description": "CFX FiveM FXServer (server-data + txAdmin). Import downloads the server artifacts, writes a starter server.cfg and prepares the txData folder.",
+  "artifacts": {
+    "windows": "https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/",
+    "linux": "https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/",
+    "build": "latest"
+  },
+  "ports": {
+    "game": { "tcp": [30120], "udp": [30120] },
+    "txAdmin": { "tcp": [40120] }
+  },
+  "layout": ["server.cfg", "txData/", "resources/"],
+  "serverCfg": [
+    "endpoint_add_tcp \"0.0.0.0:30120\"",
+    "endpoint_add_udp \"0.0.0.0:30120\"",
+    "sv_licenseKey \"CHANGE_ME\"",
+    "sv_hostname \"ForzaPanel FiveM\"",
+    "sv_maxclients 32",
+    "set steam_webApiKey \"CHANGE_ME\"",
+    "ensure txAdmin",
+    "add_ace group.admin command allow",
+    "add_principal identifier.fivem:1 group.admin"
+  ],
+  "start": {
+    "windows": "FXServer.exe +exec server.cfg",
+    "linux": "./run.sh +exec server.cfg"
+  },
+  "env": {
+    "required": ["sv_licenseKey"],
+    "optional": ["steam_webApiKey", "txAdminPort"]
+  },
+  "notes": [
+    "Get a free license key at https://keymaster.fivem.net and replace CHANGE_ME.",
+    "Open TCP+UDP 30120 (and TCP 40120 for txAdmin) on the host firewall.",
+    "First boot should be done through txAdmin on port 40120."
+  ]
+}

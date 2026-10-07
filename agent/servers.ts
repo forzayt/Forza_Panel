@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { getTemplate } from "./templates";
 
 export interface ServerRecord {
   name: string;
@@ -109,4 +110,41 @@ export async function createServer(
   };
   await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
   return { record };
+}
+
+export async function importTemplate(
+  serverName: string,
+  templateId: string
+): Promise<{ ok: true; record: ServerRecord } | { error: string; status: number }> {
+  if (!isValidServerName(serverName)) {
+    return { error: "Invalid server name.", status: 400 };
+  }
+  const server = await getServer(serverName);
+  if (!server) {
+    return { error: "Server not found.", status: 404 };
+  }
+  const template = await getTemplate(templateId);
+  if (!template) {
+    return { error: "Template not found.", status: 404 };
+  }
+  const dir = path.join(DATA_DIR, serverName);
+  // Materialize template folders (entries ending with "/"), skipping traversal.
+  for (const entry of template.layout ?? []) {
+    if (!entry.endsWith("/")) continue;
+    const clean = entry.replace(/\/+$/, "");
+    if (!clean || clean.includes("..") || clean.includes("/") || clean.includes("\\")) {
+      continue;
+    }
+    await fs.mkdir(path.join(dir, clean), { recursive: true });
+  }
+  if (template.serverCfg && template.serverCfg.length > 0) {
+    await fs.writeFile(
+      path.join(dir, "server.cfg"),
+      template.serverCfg.join("\n") + "\n",
+      "utf-8"
+    );
+  }
+  const record: ServerRecord = { ...server, type: template.label };
+  await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
+  return { ok: true, record };
 }
