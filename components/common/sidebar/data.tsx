@@ -43,7 +43,7 @@ export const NAV_DATA: NavSection[] = [
       },
       {
         title: "Servers",
-        url: "#servers",
+        url: "/servers",
         icon: <TableIcon />,
         items: [],
       },

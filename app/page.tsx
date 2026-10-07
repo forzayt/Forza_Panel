@@ -6,7 +6,6 @@ import { Badge } from "@/components/tailgrids/core/badge";
 import { Card, CardHeader, CardTitle } from "@/components/tailgrids/core/card";
 import { Progress } from "@/components/tailgrids/core/progress";
 import AreaChart from "@/components/AreaChart";
-import MiniSpark from "@/components/MiniSpark";
 import ServicesTable from "@/components/ServicesTable";
 import StatusDot from "@/components/StatusDot";
 
@@ -18,7 +17,6 @@ interface SystemInfo {
 }
 
 const HISTORY_LEN = 30;
-const NET_BARS = [5, 8, 6, 10, 7, 12, 9, 13, 8, 11, 9, 14, 10, 12, 8, 11, 9, 13];
 
 function formatUptime(totalSeconds: number): string {
   const d = Math.floor(totalSeconds / 86400);
@@ -224,7 +222,7 @@ export default function DashboardPage() {
         )}
 
         {/* Stat cards */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <StatCard icon="⚙" label="CPU Usage" barValue={cpu} pct={`${cpu.toFixed(0)}%`}>
             {cpu.toFixed(0)}%{" "}
             <span
@@ -247,23 +245,6 @@ export default function DashboardPage() {
               / {data ? data.disk.total.toFixed(0) : "—"} GB
             </span>
           </StatCard>
-          <Card>
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500/10 text-base text-text-primary">
-                📶
-              </span>
-              <div>
-                <p className="text-[11px] text-text-tertiary">Network</p>
-                <p className="font-mono-tech text-xl font-semibold text-text-primary">
-                  12.4 <span className="text-sm font-normal text-text-tertiary">MB/s</span>
-                </p>
-              </div>
-              <div className="ml-auto">
-                {/* UI-only placeholder until network metering is added */}
-                <MiniSpark data={NET_BARS} color="#4ade80" width={72} height={28} bars />
-              </div>
-            </div>
-          </Card>
         </div>
 
         {/* Main content */}
