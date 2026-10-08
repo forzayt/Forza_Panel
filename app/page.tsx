@@ -8,6 +8,7 @@ import { Progress } from "@/components/tailgrids/core/progress";
 import AreaChart from "@/components/AreaChart";
 import StatusDot from "@/components/StatusDot";
 import UpdatePill from "@/components/UpdatePill";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface SystemInfo {
   cpu: { usage: number; model: string; cores: number };
@@ -214,6 +215,7 @@ export default function DashboardPage() {
                 )}
               </span>
             </Card>
+            <ThemeToggle />
           </div>
         </div>
 

@@ -31,7 +31,7 @@ export default function RootLayout({
       className={cn("h-full antialiased", inter.className)}
     >
       <body suppressHydrationWarning className="h-full bg-background-gray-secondary_alt_2">
-        <ThemeProvider defaultTheme="light" enableSystem>
+        <ThemeProvider defaultTheme="dark">
           <Providers>{children}</Providers>
         </ThemeProvider>
         <Toaster />
