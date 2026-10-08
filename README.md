@@ -49,6 +49,11 @@ every 4 seconds: top 60 processes by CPU with per-process CPU %, memory,
 PID, sortable columns, and search. Windows uses perf-counter sampling,
 Linux uses `ps`.
 
+### Databases (`/databases`)
+
+MySQL card (clickable, defaults only) for now. Other engines, detection,
+install, and management arrive in a later phase.
+
 ### Servers (`/servers`)
 
 Servers are **folders**, not database rows. Creating a server makes
