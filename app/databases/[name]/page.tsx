@@ -150,6 +150,8 @@ export default function DatabaseDetailPage() {
     }
   };
 
+  // Engine value comes straight from database.json ("not installed"
+  // until the engine is installed from inside).
   const details = database
     ? [
         { label: "Engine", value: database.engine },

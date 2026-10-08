@@ -35,7 +35,10 @@ async function readMeta(
     const meta = JSON.parse(raw) as Partial<DatabaseRecord>;
     return {
       name,
-      engine,
+      // Prefer the stored value (e.g. "not installed" until the engine is
+      // installed from inside); fall back to the route engine.
+      engine:
+        typeof meta.engine === "string" && meta.engine ? meta.engine : engine,
       createdAt:
         typeof meta.createdAt === "string" ? meta.createdAt : new Date(0).toISOString(),
     };
@@ -80,6 +83,30 @@ export async function deleteDatabase(
   }
   await fs.rm(dir, { recursive: true, force: true });
   return { ok: true };
+}
+
+/**
+ * After a successful engine install, stamp every database record with the
+ * engine name so the stored value (and the UI card reading it) flips from
+ * "not installed". Best-effort per file.
+ */
+export async function markDatabasesEngineInstalled(engine: string): Promise<void> {
+  const records = await listDatabases(engine);
+  if (!Array.isArray(records)) return;
+  for (const r of records) {
+    const file = path.join(DATA_DIR, r.name, META_FILE);
+    try {
+      const raw = await fs.readFile(file, "utf-8");
+      const meta = JSON.parse(raw) as Record<string, unknown>;
+      await fs.writeFile(
+        file,
+        JSON.stringify({ ...meta, engine, name: r.name }, null, 2),
+        "utf-8"
+      );
+    } catch {
+      // Leave that record untouched.
+    }
+  }
 }
 
 export async function listDatabases(
@@ -135,7 +162,9 @@ export async function createDatabase(
   await fs.mkdir(dir, { recursive: true });
   const record: DatabaseRecord = {
     name: clean,
-    engine,
+    // Not installed yet — flipped to the engine name once it is installed
+    // from inside (see markDatabasesEngineInstalled).
+    engine: "not installed",
     createdAt: new Date().toISOString(),
   };
   await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
