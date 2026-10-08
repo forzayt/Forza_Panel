@@ -26,9 +26,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost (port 80 — no port in the URL). Ports below 1024
-need elevated privileges, so run as Administrator on Windows or with
-`sudo` on Linux.
+Open http://localhost:3000.
 
 ```bash
 npm run build   # production build (stop the dev server first — see below)
