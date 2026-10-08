@@ -77,18 +77,12 @@ export default function MysqlPage() {
     <AppShell>
       <div className="mt-6 space-y-5 px-2 lg:px-6">
         <div>
-          <Link
-            href="/databases"
-            className="text-sm font-medium text-text-tertiary hover:text-text-primary"
-          >
-            ← Databases
-          </Link>
-          <h1 className="mt-1 mb-1 flex items-center gap-3 text-[28px] leading-8 font-medium text-text-primary">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/10 text-base font-bold text-text-primary">
-              M
-            </span>
-            <span className="font-mono-tech">mysql</span>
+          <h1 className="mb-1 text-[28px] leading-8 font-medium text-text-primary">
+            Databases
           </h1>
+          <p className="text-sm leading-5 text-text-tertiary">
+            MySQL databases on this machine
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">

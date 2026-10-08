@@ -49,7 +49,7 @@ every 4 seconds: top 60 processes by CPU with per-process CPU %, memory,
 PID, sortable columns, and search. Windows uses perf-counter sampling,
 Linux uses `ps`.
 
-### Databases (`/databases`)
+### Databases (`/databases/mysql`)
 
 MySQL card (clickable) for now. Creating a database makes
 `data/databases/mysql/<name>/` with a `database.json` inside — same
