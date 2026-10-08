@@ -83,10 +83,10 @@ server, and the list is read straight from disk.
     {
       "id": "licenseKey",
       "label": "CFX License Key",
-      "placeholder": "cfx_xxxxxxxxxxxxxxxx",
+      "placeholder": "cfxk_xxxxxxxxxxxxxxxxxxxxxxxx",
       "help": "...",
       "required": true,
-      "pattern": "^cfx_[A-Za-z0-9_-]{4,}$",
+      "pattern": "^cfxk_[A-Za-z0-9_-]{8,}$",
       "appendArg": "+set sv_licenseKey {value}"
     }
   ]
