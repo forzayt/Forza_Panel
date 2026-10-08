@@ -267,6 +267,10 @@ export default function ServerDetailPage() {
                   {serverAction === "stopping" ? "Stopping…" : "Stop"}
                 </Button>
               ) : (
+                // Mirror the Import button: Start only exists once a template
+                // has been imported. Stop stays regardless so a stray running
+                // process can never be stranded without a button.
+                server.template && (
                 <Button
                   variant="primary"
                   appearance="fill"
@@ -284,6 +288,7 @@ export default function ServerDetailPage() {
                   </svg>
                   {serverAction === "starting" ? "Starting…" : "Start"}
                 </Button>
+                )
               )}
               {server.type === "Server" && (
                 <Button variant="success" appearance="fill" size="md" onPress={openImport}>
