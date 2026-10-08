@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
+import { Button } from "@/components/tailgrids/core/button";
 import { Card } from "@/components/tailgrids/core/card";
+import {
+  Dialog,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
 import { Skeleton } from "@/components/tailgrids/core/skeleton";
 import {
@@ -22,6 +30,7 @@ import {
 } from "@/components/tailgrids/core/table";
 import type { NetworkInfo } from "@/agent/network";
 import type { PortEntry, PortList } from "@/agent/ports";
+import { toast } from "sonner";
 
 function formatRate(bytesPerSec: number | null): string {
   if (bytesPerSec === null) return "—";
@@ -52,6 +61,8 @@ export default function NetworkPage() {
   const [portsError, setPortsError] = useState<string | null>(null);
   const [portQuery, setPortQuery] = useState("");
   const hasPortsRef = useRef(false);
+  const [stopTarget, setStopTarget] = useState<PortEntry | null>(null);
+  const [isStopping, setIsStopping] = useState(false);
   const hasDataRef = useRef(false);
   // Previous cumulative counters per interface, for live rates.
   const prevRef = useRef<Map<string, { rx: number; tx: number; at: number }>>(new Map());
@@ -134,6 +145,30 @@ export default function NetworkPage() {
     const id = setInterval(fetchPorts, 15000);
     return () => clearInterval(id);
   }, [tab, fetchPorts]);
+
+  const handleStop = async () => {
+    if (!stopTarget?.pid) return;
+    setIsStopping(true);
+    try {
+      const res = await fetch(`/api/processes/${stopTarget.pid}/kill`, {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        toast.error(json?.error ?? `Failed to stop service (${res.status}).`);
+        return;
+      }
+      toast.success(
+        `Stopped ${stopTarget.process ?? "process"} on port ${stopTarget.port}.`
+      );
+      setStopTarget(null);
+      fetchPorts();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to stop service.");
+    } finally {
+      setIsStopping(false);
+    }
+  };
 
   const portRows = useMemo(() => {
     const list: PortEntry[] = ports ? [...ports.tcp, ...ports.udp] : [];
@@ -377,6 +412,7 @@ export default function NetworkPage() {
                           <TableHead>Process</TableHead>
                           <TableHead className="text-right">PID</TableHead>
                           <TableHead className="text-right">State</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -420,11 +456,24 @@ export default function NetworkPage() {
                                 {p.state}
                               </Badge>
                             </TableCell>
+                            <TableCell className="text-right">
+                              {p.pid ? (
+                                <Button
+                                  variant="danger"
+                                  appearance="outline"
+                                  onPress={() => setStopTarget(p)}
+                                >
+                                  Stop
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-text-tertiary">—</span>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                         {portRows.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={6} className="py-8 text-center text-sm text-text-tertiary">
+                            <TableCell colSpan={7} className="py-8 text-center text-sm text-text-tertiary">
                               {portQuery ? `No ports match “${portQuery}”.` : "No listening ports found."}
                             </TableCell>
                           </TableRow>
@@ -439,6 +488,58 @@ export default function NetworkPage() {
                 )}
               </TabContent>
             </TabRoot>
+
+            <Dialog
+              isOpen={stopTarget !== null}
+              onOpenChange={(open) => {
+                if (!open) setStopTarget(null);
+              }}
+              aria-label="Confirm stop service"
+            >
+              <DialogHeader>
+                <DialogTitle>Stop service?</DialogTitle>
+              </DialogHeader>
+              <DialogBody>
+                <div className="space-y-2">
+                  <p className="text-sm text-text-secondary">
+                    Stop{" "}
+                    <span className="font-mono-tech font-semibold text-text-primary">
+                      {stopTarget?.process ?? "process"}
+                    </span>{" "}
+                    <span className="font-mono-tech text-text-tertiary">
+                      (PID {stopTarget?.pid})
+                    </span>{" "}
+                    listening on port{" "}
+                    <span className="font-mono-tech font-semibold text-text-primary">
+                      {stopTarget?.port}
+                    </span>
+                    ?
+                  </p>
+                  <p className="rounded-lg border border-button-error-outline-stroke bg-button-error-outline-background px-3 py-2 text-sm text-button-error-outline-text">
+                    The service on this port will go down immediately. Stopping
+                    system services can make the machine unstable or
+                    unreachable.
+                  </p>
+                </div>
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  variant="primary"
+                  appearance="outline"
+                  onPress={() => setStopTarget(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  appearance="fill"
+                  onPress={handleStop}
+                  isDisabled={isStopping}
+                >
+                  {isStopping ? "Stopping…" : "Stop Service"}
+                </Button>
+              </DialogFooter>
+            </Dialog>
           </>
         )}
       </div>
