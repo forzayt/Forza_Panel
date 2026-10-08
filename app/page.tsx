@@ -115,6 +115,9 @@ export default function DashboardPage() {
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [memHistory, setMemHistory] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Chart time labels depend on Date.now() — keep them client-only so SSR
+  // and the first client render agree (empty) and hydration doesn't mismatch.
+  const [xLabels, setXLabels] = useState<string[]>([]);
 
   const fetchSystem = useCallback(async () => {
     try {
@@ -146,6 +149,20 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const updateLabels = () => {
+      const now = Date.now();
+      setXLabels(
+        [10, 8, 6, 4, 2, 0].map((m) =>
+          formatClock(new Date(now - m * 60 * 1000))
+        )
+      );
+    };
+    updateLabels();
+    const id = setInterval(updateLabels, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const cpu = data?.cpu.usage ?? 0;
   const mem = data?.memory.usage ?? 0;
   const disk = data?.disk.usage ?? 0;
@@ -162,11 +179,6 @@ export default function DashboardPage() {
   };
 
   const cpuTrend = cpuHistory.length > 5 ? cpu - cpuHistory[0] : 0;
-
-  const now = Date.now();
-  const xLabels = [10, 8, 6, 4, 2, 0].map((m) =>
-    formatClock(new Date(now - m * 60 * 1000))
-  );
 
   return (
     <AppShell>
