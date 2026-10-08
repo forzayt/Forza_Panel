@@ -49,6 +49,13 @@ every 4 seconds: top 60 processes by CPU with per-process CPU %, memory,
 PID, sortable columns, and search. Windows uses perf-counter sampling,
 Linux uses `ps`.
 
+### Network (`/network`)
+
+Live interfaces with status, MAC, IPv4/IPv6, and per-interface
+download/upload rates computed from cumulative counters, polling
+`GET /api/network` every 4 seconds. Windows reads adapter counters via
+PowerShell, Linux reads `/proc/net/dev`.
+
 ### Databases (`/databases`)
 
 MySQL card (clickable) for now. Creating a database makes
@@ -135,6 +142,7 @@ server, and the list is read straight from disk.
 | GET | `/api/system` | Live CPU / memory / disk / system info |
 | GET | `/api/processes` | Live process list (top 60 by CPU) |
 | POST | `/api/processes/[pid]/kill` | Force-terminate a process |
+| GET | `/api/network` | Interfaces, addresses, byte counters |
 | GET | `/api/ip` | Public IP (ipify), LAN fallback |
 | GET | `/api/servers` | List servers from `data/servers/` |
 | POST | `/api/servers` | Create a server (`{ name }`) |

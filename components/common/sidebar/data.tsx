@@ -78,7 +78,7 @@ export const NAV_DATA: NavSection[] = [
       },
       {
         title: "Network",
-        url: "#network",
+        url: "/network",
         icon: <PieChartIcon />,
         items: [],
       },
