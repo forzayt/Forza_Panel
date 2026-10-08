@@ -89,7 +89,7 @@ export const NAV_DATA: NavSection[] = [
     items: [
       {
         title: "Tasks",
-        url: "#tasks",
+        url: "/system/tasks",
         icon: <TaskIcon />,
         items: [],
       },
