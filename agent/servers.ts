@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { getTemplate } from "./templates";
 
@@ -63,8 +63,11 @@ async function readMeta(dir: string, name: string): Promise<ServerRecord> {
   }
 }
 
-// Live processes started by this panel instance.
-const procs = new Map<string, number>();
+// Live processes started by this panel instance. The whole handle is kept
+// (not just the pid) so stdin stays open — FXServer quits immediately with
+// "Ctrl-C pressed in server console" if its stdin is closed — and so Stop
+// signals the real server process.
+const procs = new Map<string, ChildProcess>();
 
 /** Single-quote a value for `shell: true` spawn. */
 function shellQuote(value: string): string {
@@ -293,7 +296,7 @@ export async function startServer(
   if (!server) {
     return { error: "Server not found.", status: 404 };
   }
-  const existing = procs.get(name) ?? server.pid;
+  const existing = procs.get(name)?.pid ?? server.pid;
   if (isAlive(existing)) {
     return { error: `"${name}" is already running.`, status: 409 };
   }
@@ -326,19 +329,36 @@ export async function startServer(
     };
   }
   const dir = path.join(DATA_DIR, name);
-  let child;
+  let child: ChildProcess | undefined;
   try {
     const logFd = fsSync.openSync(path.join(dir, "server.log"), "a");
-    child = spawn(cmd, {
+    // `exec` replaces the wrapper shell with the server itself (POSIX), so
+    // child.pid is the real server: Stop signals the right process and no
+    // orphaned shell is left behind.
+    const cmdLine = process.platform === "win32" ? cmd : `exec ${cmd}`;
+    child = spawn(cmdLine, {
       cwd: dir,
       detached: true,
       shell: true,
-      stdio: ["ignore", logFd, logFd],
+      // A held-open stdin pipe: game servers (FXServer included) treat a
+      // closed stdin as "console quit". Never "ignore" here.
+      stdio: ["pipe", logFd, logFd],
     });
+    // Never let a stdin socket error crash the panel.
+    child.stdin?.on("error", () => {});
+    const closeLogFd = () => {
+      try {
+        fsSync.closeSync(logFd);
+      } catch {
+        // Already closed — the stdio copies are dup'd into the child at spawn.
+      }
+    };
+    child.once("spawn", closeLogFd);
+    child.once("error", closeLogFd);
   } catch (e) {
     return { error: `Failed to start: ${String(e)}`, status: 500 };
   }
-  if (!child.pid) {
+  if (!child?.pid) {
     return { error: "Failed to start: no process id.", status: 500 };
   }
   // If the process dies instantly (bad binary, missing shell), fail loudly
@@ -357,7 +377,7 @@ export async function startServer(
     };
   }
   child.unref();
-  procs.set(name, child.pid);
+  procs.set(name, child);
   const record: ServerRecord = { ...server, status: "running", pid: child.pid };
   await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
   return { ok: true, pid: child.pid };
@@ -373,13 +393,24 @@ export async function stopServer(
   if (!server) {
     return { error: "Server not found.", status: 404 };
   }
-  const pid = procs.get(name) ?? server.pid;
+  const live = procs.get(name);
   procs.delete(name);
-  if (isAlive(pid)) {
+  if (live && live.exitCode === null && !live.killed) {
+    // Panel-spawned handle: signals the real server (exec'd, same pid).
     try {
-      process.kill(pid as number);
+      live.kill();
     } catch {
       // Already gone — treat as stopped.
+    }
+  } else {
+    // No live handle (e.g. panel restarted) — fall back to the stored pid.
+    const pid = live?.pid ?? server.pid;
+    if (isAlive(pid)) {
+      try {
+        process.kill(pid as number);
+      } catch {
+        // Already gone — treat as stopped.
+      }
     }
   }
   const dir = path.join(DATA_DIR, name);

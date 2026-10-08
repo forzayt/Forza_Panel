@@ -58,7 +58,10 @@ server, and the list is read straight from disk.
   in the server folder. Import also tags the server type (hides Import
   afterwards — already-imported servers don't show it again).
 - **Start** — runs the template's start command detached in the server
-  folder, logging stdout/stderr to `server.log`. Refuses Linux-only
+  folder, logging stdout/stderr to `server.log`. The server keeps an
+  open stdin (FXServer quits instantly without one) and launches via
+  `exec` so the tracked pid is the real server, which is also what Stop
+  signals. Refuses Linux-only
   templates on Windows with a clear error, and fails loudly (exit code +
   log tail) instead of fake-starting when the process dies instantly.
 - **Stop** — kills the tracked process, marks the server stopped.
