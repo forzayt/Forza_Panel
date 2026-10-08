@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Button } from "@/components/tailgrids/core/button";
@@ -75,12 +75,25 @@ export default function ProcessesPage() {
   const [error, setError] = useState<string | null>(null);
   const [killTarget, setKillTarget] = useState<ProcessEntry | null>(null);
   const [isKilling, setIsKilling] = useState(false);
+  // Tracks whether a good snapshot ever arrived, so a transient empty
+  // response keeps the old list instead of flashing an empty table.
+  const hasDataRef = useRef(false);
 
   const fetchProcesses = useCallback(async () => {
     try {
       const res = await fetch("/api/processes", { cache: "no-store" });
       if (!res.ok) throw new Error(`API responded ${res.status}`);
-      setData(await res.json());
+      const json = (await res.json()) as ProcessList;
+      if (!json.processes || json.processes.length === 0) {
+        // Transient empty snapshot (collector hiccup) — persist the old
+        // list. Only complain if we never had anything to show.
+        if (!hasDataRef.current) {
+          setError("Process list came back empty.");
+        }
+        return;
+      }
+      hasDataRef.current = true;
+      setData(json);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load processes");
