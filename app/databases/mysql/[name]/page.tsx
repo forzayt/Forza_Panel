@@ -15,7 +15,17 @@ import {
 } from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
+import InstallLoader from "@/components/InstallLoader";
+import { toast } from "sonner";
 import type { DatabaseRecord } from "@/agent/databases";
+import type { MysqlStatus } from "@/agent/mysql";
+
+// Same shape as the server import flow: Install Database opens a searchable
+// list, then a confirm step, then installs. Real engine binaries arrive via
+// apt today; more options plug into INSTALL_OPTIONS later.
+const INSTALL_OPTIONS = [
+  { id: "mysql-apt", label: "MySQL Server", hint: "via apt · Linux only" },
+];
 
 // Database detail stub — identity + folder info only. Tables, users, and
 // live MySQL management arrive in a later phase.
@@ -29,6 +39,10 @@ export default function DatabaseDetailPage() {
   const [confirmText, setConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [mysql, setMysql] = useState<MysqlStatus | null>(null);
+  const [isInstallOpen, setIsInstallOpen] = useState(false);
+  const [installQuery, setInstallQuery] = useState("");
+  const [isInstalling, setIsInstalling] = useState(false);
 
   const fetchDatabase = useCallback(async () => {
     try {
@@ -51,6 +65,57 @@ export default function DatabaseDetailPage() {
   useEffect(() => {
     fetchDatabase();
   }, [fetchDatabase]);
+
+  const fetchMysqlStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/databases/mysql/status", { cache: "no-store" });
+      if (!res.ok) return;
+      setMysql((await res.json()) as MysqlStatus);
+    } catch {
+      // Install button stays visible — non-fatal.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMysqlStatus();
+  }, [fetchMysqlStatus]);
+
+  const openInstall = () => {
+    setInstallQuery("");
+    setIsInstalling(false);
+    setIsInstallOpen(true);
+  };
+
+  const filteredOptions = INSTALL_OPTIONS.filter((o) => {
+    const q = installQuery.trim().toLowerCase();
+    if (!q) return true;
+    return o.label.toLowerCase().includes(q) || o.hint.toLowerCase().includes(q);
+  });
+
+  const handleInstall = async () => {
+    setIsInstalling(true);
+    try {
+      const res = await fetch("/api/databases/mysql/install", { method: "POST" });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        version?: string | null;
+      } | null;
+      if (!res.ok) {
+        toast.error(json?.error ?? `Install failed (${res.status}).`);
+        setIsInstalling(false);
+        return;
+      }
+      toast.success(
+        json?.version ? `MySQL ${json.version} installed.` : "MySQL installed."
+      );
+      setIsInstallOpen(false);
+      setIsInstalling(false);
+      fetchMysqlStatus();
+    } catch (e) {
+      setIsInstalling(false);
+      toast.error(e instanceof Error ? e.message : "Install failed.");
+    }
+  };
 
   const expectedConfirm = `delete ${name}`;
 
@@ -113,6 +178,23 @@ export default function DatabaseDetailPage() {
           </div>
           {database && (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {(!mysql || !mysql.installed) && (
+                <Button variant="success" appearance="fill" size="md" onPress={openInstall}>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="size-4"
+                  >
+                    <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
+                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                  </svg>
+                  Install Database
+                </Button>
+              )}
               <Button variant="danger" appearance="outline" size="md" onPress={openDelete}>
                 <svg
                   viewBox="0 0 24 24"
@@ -226,6 +308,78 @@ export default function DatabaseDetailPage() {
             {isDeleting ? "Deleting…" : "Delete"}
           </Button>
         </DialogFooter>
+      </Dialog>
+
+      <Dialog
+        isOpen={isInstallOpen}
+        onOpenChange={setIsInstallOpen}
+        aria-label="Install database"
+      >
+        <DialogHeader>
+          <DialogTitle>
+            {isInstalling ? "Installing…" : "Install Database"}
+          </DialogTitle>
+        </DialogHeader>
+        {isInstalling ? (
+          <DialogBody>
+            <InstallLoader />
+            <p className="pb-2 text-center text-sm text-text-tertiary">
+              Installing via apt — this takes a few minutes. Keep this page
+              open.
+            </p>
+          </DialogBody>
+        ) : (
+          <>
+            <DialogBody>
+              <div className="space-y-3">
+                <Input
+                  value={installQuery}
+                  onChange={(e) => setInstallQuery(e.target.value)}
+                  placeholder="Search options…"
+                  aria-label="Search install options"
+                  autoFocus
+                  className="w-full"
+                />
+                <div className="scrollbar-thin max-h-64 overflow-y-auto">
+                  {filteredOptions.length === 0 && (
+                    <p className="px-3 py-4 text-center text-sm text-text-tertiary">
+                      No options found.
+                    </p>
+                  )}
+                  {filteredOptions.map((o) => (
+                    <button
+                      key={o.id}
+                      onClick={handleInstall}
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
+                        {o.label.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-text-primary">
+                          {o.label}
+                        </span>
+                        <span className="block truncate text-xs text-text-tertiary">
+                          {o.hint}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs text-text-tertiary">›</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                variant="primary"
+                appearance="outline"
+                onPress={() => setIsInstallOpen(false)}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </Dialog>
     </AppShell>
   );
