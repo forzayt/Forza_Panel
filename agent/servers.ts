@@ -196,6 +196,19 @@ export async function importTemplate(
   const dir = path.join(DATA_DIR, serverName);
   await fs.mkdir(dir, { recursive: true });
   await downloadAndExtract(template.download, dir);
+  // Write the template's server.cfg on first import only — never overwrite
+  // user edits on re-import. {name} is substituted with the server name.
+  if (template.serverCfg && template.serverCfg.length > 0) {
+    const cfgPath = path.join(dir, "server.cfg");
+    try {
+      await fs.access(cfgPath);
+    } catch {
+      const cfg = template.serverCfg
+        .map((line) => line.replaceAll("{name}", serverName))
+        .join("\n") + "\n";
+      await fs.writeFile(cfgPath, cfg, "utf-8");
+    }
+  }
   const record: ServerRecord = {
     ...server,
     type: template.label,

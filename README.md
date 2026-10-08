@@ -97,7 +97,9 @@ server, and the list is read straight from disk.
   endpoint exposing `recommended_download`/`latest_download` (legacy HTML
   listings are scraped as a last resort).
 - `platforms` — Start is refused on any other `process.platform`.
-- `serverCfg` (optional) — written as `server.cfg` after extraction.
+- `serverCfg` (optional) — written as `server.cfg` after extraction, on
+  first import only (re-imports never overwrite user edits). `{name}` is
+  replaced with the server name.
 - `inputs` (optional) — values the import dialog asks for before installing
   (e.g. the FiveM `sv_licenseKey`). Each entry: `id`, `label`, optional
   `placeholder`/`help`, `required`, and a `pattern` regex enforced

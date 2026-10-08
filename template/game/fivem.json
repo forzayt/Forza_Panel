@@ -6,6 +6,15 @@
   "platforms": ["linux"],
   "download": "https://changelogs-live.fivem.net/api/changelog/versions/linux/server",
   "start": "bash run.sh +exec server.cfg",
+  "serverCfg": [
+    "endpoint_add_tcp \"0.0.0.0:30120\"",
+    "endpoint_add_udp \"0.0.0.0:30120\"",
+    "set sv_hostname \"{name}\"",
+    "sets sv_projectName \"{name}\"",
+    "sets sv_projectDesc \"Powered by ForzaPanel\"",
+    "set sv_maxplayers 32",
+    "sv_scriptHookAllowed 0"
+  ],
   "inputs": [
     {
       "id": "licenseKey",

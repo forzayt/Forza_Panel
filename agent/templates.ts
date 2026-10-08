@@ -22,6 +22,8 @@ export interface GameTemplate {
   start?: string;
   platforms?: string[];
   inputs?: TemplateInput[];
+  /** Lines written to server.cfg at import ({name} = server name). */
+  serverCfg?: string[];
 }
 
 export interface TemplateSummary {
@@ -38,6 +40,13 @@ const INPUT_ID_RE = /^[a-zA-Z][a-zA-Z0-9_-]{0,31}$/;
 
 export function isValidTemplateId(id: string): boolean {
   return ID_RE.test(id);
+}
+
+/** Strictly parse server.cfg lines — capped, non-empty strings only. */
+export function parseServerCfg(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out = raw.filter((l): l is string => typeof l === "string" && l.trim() !== "");
+  return out.slice(0, 200);
 }
 
 /** Strictly parse template inputs — malformed entries are dropped. */
@@ -101,6 +110,7 @@ export async function getTemplate(id: string): Promise<GameTemplate | null> {
     const t = JSON.parse(raw) as GameTemplate;
     if (t.id !== id) return null;
     t.inputs = parseTemplateInputs(t.inputs);
+    t.serverCfg = parseServerCfg(t.serverCfg);
     return t;
   } catch {
     return null;
