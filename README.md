@@ -49,7 +49,7 @@ every 4 seconds: top 60 processes by CPU with per-process CPU %, memory,
 PID, sortable columns, and search. Windows uses perf-counter sampling,
 Linux uses `ps`.
 
-### Databases (`/databases/mysql`)
+### Databases (`/databases`)
 
 MySQL card (clickable) for now. Creating a database makes
 `data/databases/mysql/<name>/` with a `database.json` inside — same
@@ -145,12 +145,12 @@ server, and the list is read straight from disk.
 | POST | `/api/servers/[name]/start` | Run the start command |
 | POST | `/api/servers/[name]/stop` | Stop the tracked process |
 | GET | `/api/templates` | List `template/game/*.json` |
-| GET | `/api/databases/mysql` | List MySQL database folders |
-| POST | `/api/databases/mysql` | Create a database folder (`{ name }`) |
-| GET | `/api/databases/mysql/[name]` | One database |
-| DELETE | `/api/databases/mysql/[name]` | Remove database folder |
-| GET | `/api/databases/mysql/status` | MySQL installed? + version |
-| POST | `/api/databases/mysql/install` | apt install mysql-server (Linux) |
+| GET | `/api/databases` | List MySQL database folders |
+| POST | `/api/databases` | Create a database folder (`{ name }`) |
+| GET | `/api/databases/[name]` | One database |
+| DELETE | `/api/databases/[name]` | Remove database folder |
+| GET | `/api/databases/status` | MySQL installed? + version |
+| POST | `/api/databases/install` | apt install mysql-server (Linux) |
 
 ## Project structure
 

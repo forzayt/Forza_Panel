@@ -48,7 +48,7 @@ export const NAV_DATA: NavSection[] = [
       },
       {
         title: "Databases",
-        url: "/databases/mysql",
+        url: "/databases",
         icon: <InvoiceIcon />,
         items: [],
       },

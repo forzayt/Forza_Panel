@@ -28,7 +28,7 @@ export default function MysqlPage() {
 
   const fetchDatabases = useCallback(async () => {
     try {
-      const res = await fetch("/api/databases/mysql", { cache: "no-store" });
+      const res = await fetch("/api/databases", { cache: "no-store" });
       if (!res.ok) return;
       const json = (await res.json()) as { databases: DatabaseRecord[] };
       setDatabases(json.databases);
@@ -51,7 +51,7 @@ export default function MysqlPage() {
     if (!clean) return;
     setIsCreating(true);
     try {
-      const res = await fetch("/api/databases/mysql", {
+      const res = await fetch("/api/databases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: clean }),
@@ -126,7 +126,7 @@ export default function MysqlPage() {
             {databases.map((db) => (
               <Link
                 key={db.name}
-                href={`/databases/mysql/${encodeURIComponent(db.name)}`}
+                href={`/databases/${encodeURIComponent(db.name)}`}
                 className="block h-full"
               >
                 <Card className="h-full transition-transform hover:-translate-y-0.5">

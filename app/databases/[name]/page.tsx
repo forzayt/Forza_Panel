@@ -46,7 +46,7 @@ export default function DatabaseDetailPage() {
 
   const fetchDatabase = useCallback(async () => {
     try {
-      const res = await fetch(`/api/databases/mysql/${encodeURIComponent(name)}`, {
+      const res = await fetch(`/api/databases/${encodeURIComponent(name)}`, {
         cache: "no-store",
       });
       if (res.status === 404) {
@@ -68,7 +68,7 @@ export default function DatabaseDetailPage() {
 
   const fetchMysqlStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/databases/mysql/status", { cache: "no-store" });
+      const res = await fetch("/api/databases/status", { cache: "no-store" });
       if (!res.ok) return;
       setMysql((await res.json()) as MysqlStatus);
     } catch {
@@ -95,7 +95,7 @@ export default function DatabaseDetailPage() {
   const handleInstall = async () => {
     setIsInstalling(true);
     try {
-      const res = await fetch("/api/databases/mysql/install", { method: "POST" });
+      const res = await fetch("/api/databases/install", { method: "POST" });
       const json = (await res.json().catch(() => null)) as {
         error?: string;
         version?: string | null;
@@ -133,7 +133,7 @@ export default function DatabaseDetailPage() {
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`/api/databases/mysql/${encodeURIComponent(name)}`, {
+      const res = await fetch(`/api/databases/${encodeURIComponent(name)}`, {
         method: "DELETE",
       });
       const json = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -142,7 +142,7 @@ export default function DatabaseDetailPage() {
         return;
       }
       setIsDeleteOpen(false);
-      router.push("/databases/mysql");
+      router.push("/databases");
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : "Failed to delete database.");
     } finally {
@@ -164,7 +164,7 @@ export default function DatabaseDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <Link
-              href="/databases/mysql"
+              href="/databases"
               className="text-sm font-medium text-text-tertiary hover:text-text-primary"
             >
               ← Databases
@@ -220,7 +220,7 @@ export default function DatabaseDetailPage() {
               No database named <span className="font-mono-tech">{name}</span> exists.
             </p>
             <Link
-              href="/databases/mysql"
+              href="/databases"
               className="mt-4 inline-block text-sm font-medium text-button-primary-outline-text hover:underline"
             >
               ← Back to Databases
