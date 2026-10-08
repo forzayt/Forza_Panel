@@ -128,21 +128,28 @@ export default function MysqlPage() {
         {databases !== null && databases.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {databases.map((db) => (
-              <Card key={db.name}>
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-base font-bold text-text-primary">
-                    {db.name.charAt(0).toUpperCase()}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono-tech text-sm font-medium text-text-primary">
-                      {db.name}
-                    </p>
-                    <p className="truncate text-xs text-text-tertiary">
-                      Created {new Date(db.createdAt).toLocaleString()}
-                    </p>
+              <Link
+                key={db.name}
+                href={`/databases/mysql/${encodeURIComponent(db.name)}`}
+                className="block h-full"
+              >
+                <Card className="h-full transition-transform hover:-translate-y-0.5">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-base font-bold text-text-primary">
+                      {db.name.charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-mono-tech text-sm font-medium text-text-primary">
+                        {db.name}
+                      </p>
+                      <p className="truncate text-xs text-text-tertiary">
+                        Created {new Date(db.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-text-tertiary">›</span>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </Link>
             ))}
           </div>
         )}

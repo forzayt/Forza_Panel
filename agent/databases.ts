@@ -48,6 +48,20 @@ async function readMeta(
   }
 }
 
+export async function getDatabase(
+  engine: string,
+  name: string
+): Promise<DatabaseRecord | null> {
+  if (!isValidEngine(engine) || !isValidDatabaseName(name)) return null;
+  try {
+    const stat = await fs.stat(path.join(engineDir(engine), name));
+    if (!stat.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  return readMeta(path.join(engineDir(engine), name), name, engine);
+}
+
 export async function listDatabases(
   engine: string
 ): Promise<DatabaseRecord[] | { error: string; status: number }> {

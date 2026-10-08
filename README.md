@@ -144,6 +144,7 @@ server, and the list is read straight from disk.
 | GET | `/api/templates` | List `template/game/*.json` |
 | GET | `/api/databases/mysql` | List MySQL database folders |
 | POST | `/api/databases/mysql` | Create a database folder (`{ name }`) |
+| GET | `/api/databases/mysql/[name]` | One database |
 
 ## Project structure
 
