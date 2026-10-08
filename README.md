@@ -42,7 +42,7 @@ Live system overview of the machine running the panel, polling
 The header pill shows online status plus the machine's **public IP**
 (`GET /api/ip` via ipify, LAN fallback) with a copy button.
 
-### Tasks (`/system/tasks`)
+### Processes (`/system/processes`)
 
 Task-Manager-style live process list, polling `GET /api/processes`
 every 4 seconds: top 60 processes by CPU with per-process CPU %, memory,
@@ -123,6 +123,7 @@ server, and the list is read straight from disk.
 |--------|-------|---------|
 | GET | `/api/system` | Live CPU / memory / disk / system info |
 | GET | `/api/processes` | Live process list (top 60 by CPU) |
+| POST | `/api/processes/[pid]/kill` | Force-terminate a process |
 | GET | `/api/ip` | Public IP (ipify), LAN fallback |
 | GET | `/api/servers` | List servers from `data/servers/` |
 | POST | `/api/servers` | Create a server (`{ name }`) |

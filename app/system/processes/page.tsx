@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
+import { Button } from "@/components/tailgrids/core/button";
 import { Card } from "@/components/tailgrids/core/card";
+import {
+  Dialog,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
 import { Progress } from "@/components/tailgrids/core/progress";
 import { Skeleton } from "@/components/tailgrids/core/skeleton";
@@ -15,7 +23,8 @@ import {
   TableRoot,
   TableRow,
 } from "@/components/tailgrids/core/table";
-import type { ProcessList } from "@/agent/processes";
+import type { ProcessEntry, ProcessList } from "@/agent/processes";
+import { toast } from "sonner";
 
 type SortKey = "cpu" | "memMB" | "name" | "pid";
 
@@ -58,12 +67,14 @@ function SortButton({
   );
 }
 
-export default function TasksPage() {
+export default function ProcessesPage() {
   const [data, setData] = useState<ProcessList | null>(null);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("cpu");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [error, setError] = useState<string | null>(null);
+  const [killTarget, setKillTarget] = useState<ProcessEntry | null>(null);
+  const [isKilling, setIsKilling] = useState(false);
 
   const fetchProcesses = useCallback(async () => {
     try {
@@ -89,6 +100,28 @@ export default function TasksPage() {
     } else {
       setSortKey(k);
       setSortDir(k === "name" ? 1 : -1);
+    }
+  };
+
+  const handleKill = async () => {
+    if (!killTarget) return;
+    setIsKilling(true);
+    try {
+      const res = await fetch(`/api/processes/${killTarget.pid}/kill`, {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        toast.error(json?.error ?? `Failed to end task (${res.status}).`);
+        return;
+      }
+      toast.success(`Ended ${killTarget.name} (${killTarget.pid}).`);
+      setKillTarget(null);
+      fetchProcesses();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to end task.");
+    } finally {
+      setIsKilling(false);
     }
   };
 
@@ -118,7 +151,7 @@ export default function TasksPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="mb-1 text-[28px] leading-8 font-medium text-text-primary">
-              Tasks
+              Processes
             </h1>
             <p className="text-sm leading-5 text-text-tertiary">
               Live processes on this machine
@@ -186,6 +219,7 @@ export default function TasksPage() {
                   <TableHead>
                     <SortButton label="Memory" sortKey="memMB" active={sortKey} dir={sortDir} onSort={onSort} />
                   </TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -226,11 +260,20 @@ export default function TasksPage() {
                         </span>
                       </span>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="danger"
+                        appearance="outline"
+                        onPress={() => setKillTarget(p)}
+                      >
+                        End task
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-sm text-text-tertiary">
+                    <TableCell colSpan={5} className="py-8 text-center text-sm text-text-tertiary">
                       No processes match “{query}”.
                     </TableCell>
                   </TableRow>
@@ -245,6 +288,53 @@ export default function TasksPage() {
           <span className="font-mono-tech">GET /api/processes</span>
         </p>
       </div>
+
+      <Dialog
+        isOpen={killTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setKillTarget(null);
+        }}
+        aria-label="Confirm end task"
+      >
+        <DialogHeader>
+          <DialogTitle>End task?</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-2">
+            <p className="text-sm text-text-secondary">
+              Terminate{" "}
+              <span className="font-mono-tech font-semibold text-text-primary">
+                {killTarget?.name}
+              </span>{" "}
+              <span className="font-mono-tech text-text-tertiary">
+                (PID {killTarget?.pid})
+              </span>
+              ?
+            </p>
+            <p className="rounded-lg border border-button-error-outline-stroke bg-button-error-outline-background px-3 py-2 text-sm text-button-error-outline-text">
+              Unsaved data will be lost. Ending system processes can make the
+              machine unstable or force a restart.
+            </p>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            variant="primary"
+            appearance="outline"
+            onPress={() => setKillTarget(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            appearance="fill"
+            onPress={handleKill}
+            isDisabled={isKilling}
+          >
+            {isKilling ? "Ending…" : "End Task"}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </AppShell>
   );
 }

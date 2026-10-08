@@ -146,3 +146,37 @@ async function listUnixProcesses(cores: number): Promise<ProcessEntry[]> {
   }
   return entries;
 }
+
+/**
+ * Force-terminate a process by pid. Refuses the panel's own pid; anything
+ * else (including protected system processes) is attempted and the OS
+ * verdict is reported — access-denied and already-exited map to clear errors.
+ */
+export async function killProcess(
+  pid: number
+): Promise<{ ok: true } | { error: string; status: number }> {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return { error: "Invalid process id.", status: 400 };
+  }
+  if (pid === process.pid) {
+    return { error: "Refusing to terminate the panel itself.", status: 400 };
+  }
+  try {
+    if (os.platform() === "win32") {
+      await execFileAsync("taskkill", ["/PID", String(pid), "/F"]);
+    } else {
+      process.kill(pid, "SIGTERM");
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/not found|ESRCH|no such process/i.test(msg)) {
+      return { error: `Process ${pid} already exited.`, status: 404 };
+    }
+    if (/access (is )?denied|EPERM/i.test(msg)) {
+      return { error: `Access denied terminating process ${pid}.`, status: 500 };
+    }
+    const tail = msg.trim().split("\n").slice(-3).join(" ");
+    return { error: `Failed to terminate process ${pid}: ${tail.slice(0, 200)}`, status: 500 };
+  }
+}
