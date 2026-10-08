@@ -20,13 +20,6 @@ import { toast } from "sonner";
 // and Create only explains what's missing — real listing/creation arrives
 // with the MySQL connection in a later phase.
 export default function MysqlPage() {
-  const details = [
-    { label: "Engine", value: "MySQL" },
-    { label: "Default host", value: "localhost" },
-    { label: "Default port", value: "3306" },
-    { label: "Status", value: "Not configured" },
-  ];
-
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [dbName, setDbName] = useState("");
 
@@ -56,23 +49,6 @@ export default function MysqlPage() {
             </span>
             <span className="font-mono-tech">mysql</span>
           </h1>
-          <p className="text-sm leading-5 text-text-tertiary">
-            Connection defaults — management arrives in a later phase
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {details.map((d) => (
-            <Card key={d.label}>
-              <p className="text-[11px] text-text-tertiary">{d.label}</p>
-              <p
-                className="mt-1 truncate font-mono-tech text-lg font-semibold text-text-primary"
-                title={d.value}
-              >
-                {d.value}
-              </p>
-            </Card>
-          ))}
         </div>
 
         <Card className="p-0">
