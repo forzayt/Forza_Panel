@@ -53,7 +53,10 @@ Linux uses `ps`.
 
 MySQL card (clickable) for now. Creating a database makes
 `data/databases/mysql/<name>/` with a `database.json` inside — same
-folder-per-item layout as servers, listed straight from disk. A live MySQL
+folder-per-item layout as servers, listed straight from disk. The list
+page shows a green **Install MySQL** button while no server binary is
+detected — it runs `apt install mysql-server` on Linux (panel must be root
+or have passwordless sudo) with a progress animation. A live MySQL
 connection, other engines, install, and user management arrive in a later
 phase.
 
@@ -146,6 +149,8 @@ server, and the list is read straight from disk.
 | POST | `/api/databases/mysql` | Create a database folder (`{ name }`) |
 | GET | `/api/databases/mysql/[name]` | One database |
 | DELETE | `/api/databases/mysql/[name]` | Remove database folder |
+| GET | `/api/databases/mysql/status` | MySQL installed? + version |
+| POST | `/api/databases/mysql/install` | apt install mysql-server (Linux) |
 
 ## Project structure
 

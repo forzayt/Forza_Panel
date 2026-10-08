@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/common/app-shell";
+import { Badge } from "@/components/tailgrids/core/badge";
 import { Button } from "@/components/tailgrids/core/button";
 import { Card } from "@/components/tailgrids/core/card";
 import {
@@ -14,14 +15,18 @@ import {
 } from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
+import InstallLoader from "@/components/InstallLoader";
 import { toast } from "sonner";
 import type { DatabaseRecord } from "@/agent/databases";
+import type { MysqlStatus } from "@/agent/mysql";
 
 // Folder-backed databases for now: creating one makes
 // data/databases/mysql/<name>/ (same layout as servers). A live MySQL
 // connection — and with it real listing/creation — arrives in a later phase.
 export default function MysqlPage() {
   const [databases, setDatabases] = useState<DatabaseRecord[] | null>(null);
+  const [mysql, setMysql] = useState<MysqlStatus | null>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [dbName, setDbName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -40,6 +45,43 @@ export default function MysqlPage() {
   useEffect(() => {
     fetchDatabases();
   }, [fetchDatabases]);
+
+  const fetchMysqlStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/databases/mysql/status", { cache: "no-store" });
+      if (!res.ok) return;
+      setMysql((await res.json()) as MysqlStatus);
+    } catch {
+      // Status badge stays hidden — non-fatal.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMysqlStatus();
+  }, [fetchMysqlStatus]);
+
+  const handleInstall = async () => {
+    setIsInstalling(true);
+    try {
+      const res = await fetch("/api/databases/mysql/install", { method: "POST" });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        version?: string | null;
+      } | null;
+      if (!res.ok) {
+        toast.error(json?.error ?? `MySQL install failed (${res.status}).`);
+        return;
+      }
+      toast.success(
+        json?.version ? `MySQL ${json.version} installed.` : "MySQL installed."
+      );
+      fetchMysqlStatus();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "MySQL install failed.");
+    } finally {
+      setIsInstalling(false);
+    }
+  };
 
   const openCreate = () => {
     setDbName("");
@@ -100,18 +142,44 @@ export default function MysqlPage() {
               </span>
             )}
           </h2>
-          <Button
-            variant="primary"
-            appearance="fill"
-            onPress={openCreate}
-            className="bg-orange-500 text-white hover:bg-orange-400"
-          >
-            <span aria-hidden="true" className="text-base leading-none">
-              +
-            </span>
-            Create Database
-          </Button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {mysql?.installed && (
+              <Badge color="success" size="sm">
+                MySQL{mysql.version ? ` ${mysql.version}` : ""} detected
+              </Badge>
+            )}
+            {mysql && !mysql.installed && !isInstalling && (
+              <Button
+                variant="success"
+                appearance="fill"
+                onPress={handleInstall}
+              >
+                Install MySQL
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              appearance="fill"
+              onPress={openCreate}
+              className="bg-orange-500 text-white hover:bg-orange-400"
+            >
+              <span aria-hidden="true" className="text-base leading-none">
+                +
+              </span>
+              Create Database
+            </Button>
+          </div>
         </div>
+
+        {isInstalling && (
+          <Card>
+            <InstallLoader />
+            <p className="pb-2 text-center text-sm text-text-tertiary">
+              Installing MySQL Server via apt — this takes a few minutes. Keep
+              this page open.
+            </p>
+          </Card>
+        )}
 
         {databases === null && (
           <p className="text-sm text-text-tertiary">Loading databases…</p>
