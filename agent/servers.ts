@@ -11,6 +11,8 @@ export interface ServerRecord {
   status: "running" | "stopped" | "unknown";
   createdAt: string;
   template?: string;
+  /** Per-server template input values (e.g. license keys), set at import. */
+  settings?: Record<string, string>;
   pid?: number;
 }
 
@@ -36,6 +38,13 @@ async function readMeta(dir: string, name: string): Promise<ServerRecord> {
         typeof meta.createdAt === "string" ? meta.createdAt : new Date(0).toISOString(),
     };
     if (typeof meta.template === "string") record.template = meta.template;
+    if (meta.settings && typeof meta.settings === "object") {
+      const settings: Record<string, string> = {};
+      for (const [k, v] of Object.entries(meta.settings as Record<string, unknown>)) {
+        if (typeof v === "string") settings[k] = v;
+      }
+      if (Object.keys(settings).length > 0) record.settings = settings;
+    }
     if (typeof meta.pid === "number") record.pid = meta.pid;
     // Reconcile stale "running" (e.g. panel restarted and pid is gone).
     if (record.status === "running" && !isAlive(record.pid)) {
@@ -56,6 +65,11 @@ async function readMeta(dir: string, name: string): Promise<ServerRecord> {
 
 // Live processes started by this panel instance.
 const procs = new Map<string, number>();
+
+/** Single-quote a value for `shell: true` spawn. */
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
 
 function isAlive(pid?: number): boolean {
   if (!pid) return false;
@@ -146,7 +160,8 @@ export async function createServer(
 
 export async function importTemplate(
   serverName: string,
-  templateId: string
+  templateId: string,
+  rawInputs?: unknown
 ): Promise<{ ok: true; record: ServerRecord } | { error: string; status: number }> {
   if (!isValidServerName(serverName)) {
     return { error: "Invalid server name.", status: 400 };
@@ -162,6 +177,22 @@ export async function importTemplate(
   if (!template.download || typeof template.download !== "string") {
     return { error: "Template has no download URL.", status: 400 };
   }
+  // Validate template inputs (e.g. FiveM license key) before downloading.
+  const provided =
+    rawInputs && typeof rawInputs === "object"
+      ? (rawInputs as Record<string, unknown>)
+      : {};
+  const settings: Record<string, string> = {};
+  for (const input of template.inputs ?? []) {
+    const value = typeof provided[input.id] === "string" ? (provided[input.id] as string).trim() : "";
+    if (input.required && !value) {
+      return { error: `"${input.label}" is required.`, status: 400 };
+    }
+    if (value && input.pattern && !new RegExp(input.pattern).test(value)) {
+      return { error: `"${input.label}" has an invalid format.`, status: 400 };
+    }
+    if (value) settings[input.id] = value;
+  }
   const dir = path.join(DATA_DIR, serverName);
   await fs.mkdir(dir, { recursive: true });
   await downloadAndExtract(template.download, dir);
@@ -172,6 +203,7 @@ export async function importTemplate(
     status: "stopped",
     pid: undefined,
   };
+  if (Object.keys(settings).length > 0) record.settings = settings;
   await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
   return { ok: true, record };
 }
@@ -253,10 +285,25 @@ export async function startServer(
     return { error: `"${name}" is already running.`, status: 409 };
   }
   const template = server.template ? await getTemplate(server.template) : null;
-  const cmd = template?.start?.trim();
+  let cmd = template?.start?.trim();
   if (!cmd) {
     return { error: "No start command — import a template first.", status: 400 };
   }
+  // Append per-server template args (e.g. FiveM `+set sv_licenseKey <key>`).
+  // Values were pattern-validated at import; still shell-quote defensively.
+  const extraArgs: string[] = [];
+  for (const input of template?.inputs ?? []) {
+    if (!input.appendArg) continue;
+    const value = server.settings?.[input.id]?.trim();
+    if (input.required && !value) {
+      return {
+        error: `"${input.label}" is missing — re-import the template and provide it.`,
+        status: 400,
+      };
+    }
+    if (value) extraArgs.push(input.appendArg.replaceAll("{value}", shellQuote(value)));
+  }
+  if (extraArgs.length > 0) cmd = `${cmd} ${extraArgs.join(" ")}`;
   if (template?.platforms && !template.platforms.includes(process.platform)) {
     return {
       error: `"${template.label}" needs ${template.platforms.join(

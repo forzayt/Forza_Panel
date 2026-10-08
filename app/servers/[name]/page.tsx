@@ -44,6 +44,7 @@ export default function ServerDetailPage() {
   const [tplQuery, setTplQuery] = useState("");
   const [importingId, setImportingId] = useState<string | null>(null);
   const [pendingTemplate, setPendingTemplate] = useState<TemplateSummary | null>(null);
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [isInstalling, setIsInstalling] = useState(false);
   const [serverAction, setServerAction] = useState<"starting" | "stopping" | null>(null);
 
@@ -100,6 +101,7 @@ export default function ServerDetailPage() {
   const openImport = () => {
     setTplQuery("");
     setPendingTemplate(null);
+    setInputValues({});
     setIsInstalling(false);
     setIsImportOpen(true);
   };
@@ -128,7 +130,7 @@ export default function ServerDetailPage() {
     }
   };
 
-  const handleImport = async (templateId: string) => {
+  const handleImport = async (templateId: string, inputs: Record<string, string>) => {
     setImportingId(templateId);
     setIsInstalling(true);
     const started = Date.now();
@@ -136,7 +138,7 @@ export default function ServerDetailPage() {
       const res = await fetch(`/api/servers/${encodeURIComponent(name)}/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId }),
+        body: JSON.stringify({ templateId, inputs }),
       });
       const json = (await res.json().catch(() => null)) as {
         error?: string;
@@ -156,6 +158,7 @@ export default function ServerDetailPage() {
       toast.success(`Template imported into "${name}".`);
       setIsImportOpen(false);
       setPendingTemplate(null);
+      setInputValues({});
       setIsInstalling(false);
       fetchServer();
     } catch (e) {
@@ -428,7 +431,10 @@ export default function ServerDetailPage() {
         isOpen={isImportOpen}
         onOpenChange={(open) => {
           setIsImportOpen(open);
-          if (!open) setPendingTemplate(null);
+          if (!open) {
+            setPendingTemplate(null);
+            setInputValues({});
+          }
         }}
         aria-label="Import template"
       >
@@ -456,6 +462,28 @@ export default function ServerDetailPage() {
                   <p className="rounded-lg border border-button-error-outline-stroke bg-button-error-outline-background px-3 py-2 text-sm text-button-error-outline-text">
                     This will install server files into this folder.
                   </p>
+                  {(pendingTemplate.inputs ?? []).map((input) => (
+                    <div key={input.id} className="space-y-1 pt-1">
+                      <Label htmlFor={`tpl-input-${input.id}`}>
+                        {input.label}
+                        {input.required && <span className="text-red-500"> *</span>}
+                      </Label>
+                      <Input
+                        id={`tpl-input-${input.id}`}
+                        value={inputValues[input.id] ?? ""}
+                        onChange={(e) =>
+                          setInputValues((v) => ({ ...v, [input.id]: e.target.value }))
+                        }
+                        placeholder={input.placeholder ?? ""}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full font-mono-tech"
+                      />
+                      {input.help && (
+                        <p className="text-xs text-text-tertiary">{input.help}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </DialogBody>
               <DialogFooter>
@@ -469,8 +497,13 @@ export default function ServerDetailPage() {
                 <Button
                   variant="success"
                   appearance="fill"
-                  onPress={() => handleImport(pendingTemplate.id)}
-                  isDisabled={importingId !== null}
+                  onPress={() => handleImport(pendingTemplate.id, inputValues)}
+                  isDisabled={
+                    importingId !== null ||
+                    (pendingTemplate.inputs ?? []).some(
+                      (i) => i.required && !(inputValues[i.id] ?? "").trim()
+                    )
+                  }
                 >
                   {importingId ? "Installing…" : "Install Files"}
                 </Button>
@@ -503,7 +536,10 @@ export default function ServerDetailPage() {
                   {filteredTemplates.map((t) => (
                     <button
                       key={t.id}
-                      onClick={() => setPendingTemplate(t)}
+                      onClick={() => {
+                        setPendingTemplate(t);
+                        setInputValues({});
+                      }}
                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary"
                     >
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">

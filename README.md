@@ -78,7 +78,18 @@ server, and the list is read straight from disk.
   "platforms": ["linux"],
   "download": "https://changelogs-live.fivem.net/api/changelog/versions/linux/server",
   "serverCfg": ["endpoint_add_tcp ..."],
-  "start": "bash run.sh +exec server.cfg"
+  "start": "bash run.sh +exec server.cfg",
+  "inputs": [
+    {
+      "id": "licenseKey",
+      "label": "CFX License Key",
+      "placeholder": "cfx_xxxxxxxxxxxxxxxx",
+      "help": "...",
+      "required": true,
+      "pattern": "^cfx_[A-Za-z0-9_-]{4,}$",
+      "appendArg": "+set sv_licenseKey {value}"
+    }
+  ]
 }
 ```
 
@@ -87,6 +98,12 @@ server, and the list is read straight from disk.
   listings are scraped as a last resort).
 - `platforms` — Start is refused on any other `process.platform`.
 - `serverCfg` (optional) — written as `server.cfg` after extraction.
+- `inputs` (optional) — values the import dialog asks for before installing
+  (e.g. the FiveM `sv_licenseKey`). Each entry: `id`, `label`, optional
+  `placeholder`/`help`, `required`, and a `pattern` regex enforced
+  server-side. `appendArg` is appended to `start` at launch with `{value}`
+  substituted (shell-quoted) — the key is stored in the server's
+  `server.json` under `settings`, never in the template.
 
 ## API
 
@@ -99,7 +116,7 @@ server, and the list is read straight from disk.
 | GET | `/api/servers/[name]` | One server |
 | DELETE | `/api/servers/[name]` | Remove server folder |
 | GET | `/api/servers/[name]/log?lines=200` | Tail `server.log` |
-| POST | `/api/servers/[name]/import` | Download + extract template (`{ templateId }`) |
+| POST | `/api/servers/[name]/import` | Download + extract template (`{ templateId, inputs? }`) |
 | POST | `/api/servers/[name]/start` | Run the start command |
 | POST | `/api/servers/[name]/stop` | Stop the tracked process |
 | GET | `/api/templates` | List `template/game/*.json` |
