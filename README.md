@@ -51,8 +51,11 @@ Linux uses `ps`.
 
 ### Databases (`/databases`)
 
-MySQL card (clickable, defaults only) for now. Other engines, detection,
-install, and management arrive in a later phase.
+MySQL card (clickable) for now. Creating a database makes
+`data/databases/mysql/<name>/` with a `database.json` inside — same
+folder-per-item layout as servers, listed straight from disk. A live MySQL
+connection, other engines, install, and user management arrive in a later
+phase.
 
 ### Servers (`/servers`)
 
@@ -139,6 +142,8 @@ server, and the list is read straight from disk.
 | POST | `/api/servers/[name]/start` | Run the start command |
 | POST | `/api/servers/[name]/stop` | Stop the tracked process |
 | GET | `/api/templates` | List `template/game/*.json` |
+| GET | `/api/databases/mysql` | List MySQL database folders |
+| POST | `/api/databases/mysql` | Create a database folder (`{ name }`) |
 
 ## Project structure
 
