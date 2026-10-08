@@ -91,51 +91,61 @@ export default function MysqlPage() {
           </h1>
         </div>
 
-        <Card className="p-0">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border px-5 py-4">
-            <h2 className="text-sm font-semibold text-text-primary">Databases</h2>
-            <Button
-              variant="primary"
-              appearance="fill"
-              onPress={openCreate}
-              className="bg-orange-500 text-white hover:bg-orange-400"
-            >
-              <span aria-hidden="true" className="text-base leading-none">
-                +
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-text-primary">
+            Databases
+            {databases !== null && databases.length > 0 && (
+              <span className="ml-2 font-mono-tech text-xs font-normal text-text-tertiary">
+                {databases.length}
               </span>
-              Create Database
-            </Button>
-          </div>
-          <p className="px-5 py-8 text-center text-sm text-text-tertiary">
-            {databases === null
-              ? "Loading databases…"
-              : databases.length === 0
-                ? "No databases yet — create one to get started."
-                : `${databases.length} database${databases.length === 1 ? "" : "s"}`}
-          </p>
-          {(databases ?? []).length > 0 && (
-            <ul className="scrollbar-thin max-h-96 space-y-1 overflow-y-auto px-3 pb-3">
-              {(databases ?? []).map((db) => (
-                <li
-                  key={db.name}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-background-gray-primary"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
+            )}
+          </h2>
+          <Button
+            variant="primary"
+            appearance="fill"
+            onPress={openCreate}
+            className="bg-orange-500 text-white hover:bg-orange-400"
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              +
+            </span>
+            Create Database
+          </Button>
+        </div>
+
+        {databases === null && (
+          <p className="text-sm text-text-tertiary">Loading databases…</p>
+        )}
+
+        {databases !== null && databases.length === 0 && (
+          <Card>
+            <p className="py-4 text-center text-sm text-text-tertiary">
+              No databases yet — create one to get started.
+            </p>
+          </Card>
+        )}
+
+        {databases !== null && databases.length > 0 && (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {databases.map((db) => (
+              <Card key={db.name}>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-base font-bold text-text-primary">
                     {db.name.charAt(0).toUpperCase()}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-mono-tech text-sm font-medium text-text-primary">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-mono-tech text-sm font-medium text-text-primary">
                       {db.name}
-                    </span>
-                    <span className="block truncate text-xs text-text-tertiary">
+                    </p>
+                    <p className="truncate text-xs text-text-tertiary">
                       Created {new Date(db.createdAt).toLocaleString()}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       <Dialog
