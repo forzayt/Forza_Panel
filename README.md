@@ -143,6 +143,7 @@ server, and the list is read straight from disk.
 | GET | `/api/processes` | Live process list (top 60 by CPU) |
 | POST | `/api/processes/[pid]/kill` | Force-terminate a process |
 | GET | `/api/network` | Interfaces, addresses, byte counters |
+| GET | `/api/network/ports` | Listening TCP/UDP ports + owning process |
 | GET | `/api/ip` | Public IP (ipify), LAN fallback |
 | GET | `/api/servers` | List servers from `data/servers/` |
 | POST | `/api/servers` | Create a server (`{ name }`) |

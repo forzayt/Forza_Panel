@@ -1,10 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Card } from "@/components/tailgrids/core/card";
+import { Input } from "@/components/tailgrids/core/input";
 import { Skeleton } from "@/components/tailgrids/core/skeleton";
+import {
+  TabContent,
+  TabList,
+  TabRoot,
+  TabTrigger,
+} from "@/components/tailgrids/core/tabs";
 import {
   TableBody,
   TableCell,
@@ -14,6 +21,7 @@ import {
   TableRow,
 } from "@/components/tailgrids/core/table";
 import type { NetworkInfo } from "@/agent/network";
+import type { PortEntry, PortList } from "@/agent/ports";
 
 function formatRate(bytesPerSec: number | null): string {
   if (bytesPerSec === null) return "—";
@@ -39,6 +47,11 @@ export default function NetworkPage() {
   const [publicIp, setPublicIp] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"interfaces" | "ports">("interfaces");
+  const [ports, setPorts] = useState<PortList | null>(null);
+  const [portsError, setPortsError] = useState<string | null>(null);
+  const [portQuery, setPortQuery] = useState("");
+  const hasPortsRef = useRef(false);
   const hasDataRef = useRef(false);
   // Previous cumulative counters per interface, for live rates.
   const prevRef = useRef<Map<string, { rx: number; tx: number; at: number }>>(new Map());
@@ -97,6 +110,45 @@ export default function NetworkPage() {
       })
       .catch(() => {});
   }, []);
+
+  const fetchPorts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/network/ports", { cache: "no-store" });
+      if (!res.ok) throw new Error(`API responded ${res.status}`);
+      const json = (await res.json()) as PortList;
+      if (json.total === 0 && hasPortsRef.current) {
+        // Transient empty snapshot — keep the previous list.
+        return;
+      }
+      hasPortsRef.current = true;
+      setPorts(json);
+      setPortsError(null);
+    } catch (e) {
+      setPortsError(e instanceof Error ? e.message : "Failed to load ports");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "ports") return;
+    fetchPorts();
+    const id = setInterval(fetchPorts, 15000);
+    return () => clearInterval(id);
+  }, [tab, fetchPorts]);
+
+  const portRows = useMemo(() => {
+    const list: PortEntry[] = ports ? [...ports.tcp, ...ports.udp] : [];
+    const q = portQuery.trim().toLowerCase();
+    const filtered = q
+      ? list.filter(
+          (p) =>
+            String(p.port).includes(q) ||
+            (p.process ?? "").toLowerCase().includes(q) ||
+            p.address.toLowerCase().includes(q)
+        )
+      : list;
+    filtered.sort((a, b) => a.port - b.port || a.address.localeCompare(b.address));
+    return filtered;
+  }, [ports, portQuery]);
 
   const copy = async (key: string, value: string) => {
     try {
@@ -192,8 +244,21 @@ export default function NetworkPage() {
               </StatCard>
             </div>
 
-            <Card className="p-0">
-              <TableRoot fullBleed>
+            <TabRoot defaultValue="interfaces">
+              <TabList>
+                <span onClick={() => setTab("interfaces")}>
+                  <TabTrigger value="interfaces" badge={data.interfaces.length}>
+                    Interfaces
+                  </TabTrigger>
+                </span>
+                <span onClick={() => setTab("ports")}>
+                  <TabTrigger value="ports" badge={ports ? ports.total : ""}>
+                    Ports
+                  </TabTrigger>
+                </span>
+              </TabList>
+              <TabContent value="interfaces" className="px-0">
+                <TableRoot fullBleed>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Interface</TableHead>
@@ -273,13 +338,107 @@ export default function NetworkPage() {
                     );
                   })}
                 </TableBody>
-              </TableRoot>
-            </Card>
-
-            <p className="text-center text-[11px] text-text-tertiary">
-              {data.interfaces.length} interfaces · {upCount} up · refreshes every 4
-              seconds from <span className="font-mono-tech">GET /api/network</span>
-            </p>
+                </TableRoot>
+                <p className="pt-4 text-center text-[11px] text-text-tertiary">
+                  {data.interfaces.length} interfaces · {upCount} up · refreshes every 4
+                  seconds from <span className="font-mono-tech">GET /api/network</span>
+                </p>
+              </TabContent>
+              <TabContent value="ports" className="px-0">
+                <div className="mb-4 max-w-md">
+                  <Input
+                    value={portQuery}
+                    onChange={(e) => setPortQuery(e.target.value)}
+                    placeholder="Search ports…"
+                    aria-label="Search ports"
+                    className="w-full"
+                  />
+                </div>
+                {portsError && !ports && (
+                  <Card className="border-button-error-outline-stroke bg-button-error-outline-background px-4 py-3 text-sm text-button-error-outline-text">
+                    Could not reach <span className="font-mono-tech">/api/network/ports</span>: {portsError}
+                  </Card>
+                )}
+                {!ports && !portsError && (
+                  <div className="space-y-2">
+                    {[0, 1, 2].map((i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                )}
+                {ports && (
+                  <>
+                    <TableRoot fullBleed>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Port</TableHead>
+                          <TableHead>Protocol</TableHead>
+                          <TableHead>Address</TableHead>
+                          <TableHead>Process</TableHead>
+                          <TableHead className="text-right">PID</TableHead>
+                          <TableHead className="text-right">State</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {portRows.map((p) => (
+                          <TableRow
+                            key={`${p.proto}-${p.address}-${p.port}`}
+                            className="hover:bg-background-gray-primary/40"
+                          >
+                            <TableCell>
+                              <span className="font-mono-tech text-sm font-semibold text-text-primary">
+                                {p.port}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge color={p.proto === "TCP" ? "sky" : "violet"} size="sm">
+                                {p.proto}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono-tech text-xs text-text-secondary">
+                              {p.address}
+                            </TableCell>
+                            <TableCell>
+                              {p.process ? (
+                                <span className="flex items-center gap-2">
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-500/10 text-[11px] font-bold text-text-primary">
+                                    {p.process.charAt(0).toUpperCase()}
+                                  </span>
+                                  <span className="font-mono-tech text-xs text-text-secondary">
+                                    {p.process}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-xs text-text-tertiary">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-mono-tech text-xs text-text-tertiary">
+                              {p.pid ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge color={p.state === "LISTEN" ? "success" : "gray"} size="sm">
+                                {p.state}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {portRows.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={6} className="py-8 text-center text-sm text-text-tertiary">
+                              {portQuery ? `No ports match “${portQuery}”.` : "No listening ports found."}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </TableRoot>
+                    <p className="pt-4 text-center text-[11px] text-text-tertiary">
+                      {ports.total} listening ports · refreshes every 15 seconds from{" "}
+                      <span className="font-mono-tech">GET /api/network/ports</span>
+                    </p>
+                  </>
+                )}
+              </TabContent>
+            </TabRoot>
           </>
         )}
       </div>
