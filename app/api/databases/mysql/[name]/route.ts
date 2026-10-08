@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDatabase } from "@/agent/databases";
+import { deleteDatabase, getDatabase } from "@/agent/databases";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,25 @@ export async function GET(
   } catch (err) {
     return NextResponse.json(
       { error: "Failed to load database", details: String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ name: string }> }
+) {
+  try {
+    const { name } = await params;
+    const result = await deleteDatabase(ENGINE, decodeURIComponent(name));
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to delete database", details: String(err) },
       { status: 500 }
     );
   }

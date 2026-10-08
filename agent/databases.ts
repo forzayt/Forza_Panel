@@ -62,6 +62,29 @@ export async function getDatabase(
   return readMeta(path.join(engineDir(engine), name), name, engine);
 }
 
+export async function deleteDatabase(
+  engine: string,
+  name: string
+): Promise<{ ok: true } | { error: string; status: number }> {
+  if (!isValidEngine(engine)) {
+    return { error: "Invalid engine.", status: 400 };
+  }
+  if (!isValidDatabaseName(name)) {
+    return { error: "Invalid database name.", status: 400 };
+  }
+  const dir = path.join(engineDir(engine), name);
+  try {
+    const stat = await fs.stat(dir);
+    if (!stat.isDirectory()) {
+      return { error: `"${name}" is not a database folder.`, status: 404 };
+    }
+  } catch {
+    return { error: "Database not found.", status: 404 };
+  }
+  await fs.rm(dir, { recursive: true, force: true });
+  return { ok: true };
+}
+
 export async function listDatabases(
   engine: string
 ): Promise<DatabaseRecord[] | { error: string; status: number }> {

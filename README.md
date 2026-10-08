@@ -145,6 +145,7 @@ server, and the list is read straight from disk.
 | GET | `/api/databases/mysql` | List MySQL database folders |
 | POST | `/api/databases/mysql` | Create a database folder (`{ name }`) |
 | GET | `/api/databases/mysql/[name]` | One database |
+| DELETE | `/api/databases/mysql/[name]` | Remove database folder |
 
 ## Project structure
 
