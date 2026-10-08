@@ -1,4 +1,5 @@
 import Providers from "@/app/providers";
+import RouteLoader from "@/components/RouteLoader";
 import { cn } from "@/utils/cn";
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
@@ -34,6 +35,7 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="dark">
           <Providers>{children}</Providers>
         </ThemeProvider>
+        <RouteLoader />
         <Toaster />
       </body>
     </html>
