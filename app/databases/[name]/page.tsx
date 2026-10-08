@@ -153,7 +153,7 @@ export default function DatabaseDetailPage() {
   const details = database
     ? [
         { label: "Engine", value: database.engine },
-        { label: "Folder", value: `data/databases/${database.engine}/${database.name}` },
+        { label: "Folder", value: `data/databases/${database.name}` },
         { label: "Created", value: new Date(database.createdAt).toLocaleString() },
       ]
     : [];

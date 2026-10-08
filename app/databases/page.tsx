@@ -174,7 +174,7 @@ export default function MysqlPage() {
             />
             <p className="text-xs text-text-tertiary">
               Letters, numbers, and underscores only — becomes a folder under{" "}
-              <span className="font-mono-tech">data/databases/mysql/</span>.
+              <span className="font-mono-tech">data/databases/</span>.
             </p>
           </div>
         </DialogBody>

@@ -52,7 +52,7 @@ Linux uses `ps`.
 ### Databases (`/databases`)
 
 MySQL card (clickable) for now. Creating a database makes
-`data/databases/mysql/<name>/` with a `database.json` inside — same
+`data/databases/<name>/` with a `database.json` inside — same
 folder-per-item layout as servers, listed straight from disk. Inside a
 database, **Install Database** mirrors the server import flow: a searchable
 option list, a confirm step, then `apt install mysql-server` on Linux

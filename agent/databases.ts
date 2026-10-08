@@ -12,7 +12,8 @@ const META_FILE = "database.json";
 
 // MySQL-compatible identifiers: start with a letter/underscore, then
 // letters, numbers, underscores (max 64 chars). Same folder-per-item
-// layout as servers: data/databases/<engine>/<name>/database.json.
+// layout as servers: data/databases/<name>/database.json. The engine is
+// kept as metadata on the record, not as a folder level.
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const ENGINE_RE = /^[a-z0-9][a-z0-9-_]{0,31}$/;
 
@@ -22,10 +23,6 @@ export function isValidDatabaseName(name: string): boolean {
 
 export function isValidEngine(engine: string): boolean {
   return ENGINE_RE.test(engine);
-}
-
-function engineDir(engine: string): string {
-  return path.join(DATA_DIR, engine);
 }
 
 async function readMeta(
@@ -54,12 +51,12 @@ export async function getDatabase(
 ): Promise<DatabaseRecord | null> {
   if (!isValidEngine(engine) || !isValidDatabaseName(name)) return null;
   try {
-    const stat = await fs.stat(path.join(engineDir(engine), name));
+    const stat = await fs.stat(path.join(DATA_DIR, name));
     if (!stat.isDirectory()) return null;
   } catch {
     return null;
   }
-  return readMeta(path.join(engineDir(engine), name), name, engine);
+  return readMeta(path.join(DATA_DIR, name), name, engine);
 }
 
 export async function deleteDatabase(
@@ -72,7 +69,7 @@ export async function deleteDatabase(
   if (!isValidDatabaseName(name)) {
     return { error: "Invalid database name.", status: 400 };
   }
-  const dir = path.join(engineDir(engine), name);
+  const dir = path.join(DATA_DIR, name);
   try {
     const stat = await fs.stat(dir);
     if (!stat.isDirectory()) {
@@ -91,7 +88,7 @@ export async function listDatabases(
   if (!isValidEngine(engine)) {
     return { error: "Invalid engine.", status: 400 };
   }
-  const dir = engineDir(engine);
+  const dir = DATA_DIR;
   let entries;
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
@@ -125,7 +122,7 @@ export async function createDatabase(
       status: 400,
     };
   }
-  const dir = path.join(engineDir(engine), clean);
+  const dir = path.join(DATA_DIR, clean);
   try {
     const stat = await fs.stat(dir);
     if (stat.isDirectory()) {
