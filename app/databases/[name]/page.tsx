@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import type { DatabaseRecord } from "@/agent/databases";
 import type { MysqlStatus } from "@/agent/mysql";
 
-// Same shape as the server import flow: Install Database opens a searchable
+// Same shape as the server import flow: Import opens a searchable
 // list, then a confirm step, then installs. Real engine binaries arrive via
 // apt today; more options plug into INSTALL_OPTIONS later.
 const INSTALL_OPTIONS = [
@@ -180,6 +180,21 @@ export default function DatabaseDetailPage() {
           </div>
           {database && (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Button variant="success" appearance="fill" size="md" onPress={openInstall}>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-4"
+                >
+                  <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
+                  <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                </svg>
+                Import
+              </Button>
               <Button variant="danger" appearance="outline" size="md" onPress={openDelete}>
                 <svg
                   viewBox="0 0 24 24"
@@ -298,11 +313,11 @@ export default function DatabaseDetailPage() {
       <Dialog
         isOpen={isInstallOpen}
         onOpenChange={setIsInstallOpen}
-        aria-label="Install database"
+        aria-label="Import database"
       >
         <DialogHeader>
           <DialogTitle>
-            {isInstalling ? "Installing…" : "Install Database"}
+            {isInstalling ? "Installing…" : "Import Database"}
           </DialogTitle>
         </DialogHeader>
         {isInstalling ? (
