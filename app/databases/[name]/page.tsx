@@ -180,23 +180,6 @@ export default function DatabaseDetailPage() {
           </div>
           {database && (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {(!mysql || !mysql.installed) && (
-                <Button variant="success" appearance="fill" size="md" onPress={openInstall}>
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="size-4"
-                  >
-                    <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
-                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                  </svg>
-                  Install Database
-                </Button>
-              )}
               <Button variant="danger" appearance="outline" size="md" onPress={openDelete}>
                 <svg
                   viewBox="0 0 24 24"
