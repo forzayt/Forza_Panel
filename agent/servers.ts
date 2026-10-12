@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { getTemplate } from "./templates";
 
@@ -11,6 +11,8 @@ export interface ServerRecord {
   status: "running" | "stopped" | "unknown";
   createdAt: string;
   template?: string;
+  /** Per-server template input values (e.g. license keys), set at import. */
+  settings?: Record<string, string>;
   pid?: number;
 }
 
@@ -36,6 +38,13 @@ async function readMeta(dir: string, name: string): Promise<ServerRecord> {
         typeof meta.createdAt === "string" ? meta.createdAt : new Date(0).toISOString(),
     };
     if (typeof meta.template === "string") record.template = meta.template;
+    if (meta.settings && typeof meta.settings === "object") {
+      const settings: Record<string, string> = {};
+      for (const [k, v] of Object.entries(meta.settings as Record<string, unknown>)) {
+        if (typeof v === "string") settings[k] = v;
+      }
+      if (Object.keys(settings).length > 0) record.settings = settings;
+    }
     if (typeof meta.pid === "number") record.pid = meta.pid;
     // Reconcile stale "running" (e.g. panel restarted and pid is gone).
     if (record.status === "running" && !isAlive(record.pid)) {
@@ -54,8 +63,16 @@ async function readMeta(dir: string, name: string): Promise<ServerRecord> {
   }
 }
 
-// Live processes started by this panel instance.
-const procs = new Map<string, number>();
+// Live processes started by this panel instance. The whole handle is kept
+// (not just the pid) so stdin stays open — FXServer quits immediately with
+// "Ctrl-C pressed in server console" if its stdin is closed — and so Stop
+// signals the real server process.
+const procs = new Map<string, ChildProcess>();
+
+/** Single-quote a value for `shell: true` spawn. */
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
 
 function isAlive(pid?: number): boolean {
   if (!pid) return false;
@@ -146,7 +163,8 @@ export async function createServer(
 
 export async function importTemplate(
   serverName: string,
-  templateId: string
+  templateId: string,
+  rawInputs?: unknown
 ): Promise<{ ok: true; record: ServerRecord } | { error: string; status: number }> {
   if (!isValidServerName(serverName)) {
     return { error: "Invalid server name.", status: 400 };
@@ -162,9 +180,38 @@ export async function importTemplate(
   if (!template.download || typeof template.download !== "string") {
     return { error: "Template has no download URL.", status: 400 };
   }
+  // Validate template inputs (e.g. FiveM license key) before downloading.
+  const provided =
+    rawInputs && typeof rawInputs === "object"
+      ? (rawInputs as Record<string, unknown>)
+      : {};
+  const settings: Record<string, string> = {};
+  for (const input of template.inputs ?? []) {
+    const value = typeof provided[input.id] === "string" ? (provided[input.id] as string).trim() : "";
+    if (input.required && !value) {
+      return { error: `"${input.label}" is required.`, status: 400 };
+    }
+    if (value && input.pattern && !new RegExp(input.pattern).test(value)) {
+      return { error: `"${input.label}" has an invalid format.`, status: 400 };
+    }
+    if (value) settings[input.id] = value;
+  }
   const dir = path.join(DATA_DIR, serverName);
   await fs.mkdir(dir, { recursive: true });
   await downloadAndExtract(template.download, dir);
+  // Write the template's server.cfg on first import only — never overwrite
+  // user edits on re-import. {name} is substituted with the server name.
+  if (template.serverCfg && template.serverCfg.length > 0) {
+    const cfgPath = path.join(dir, "server.cfg");
+    try {
+      await fs.access(cfgPath);
+    } catch {
+      const cfg = template.serverCfg
+        .map((line) => line.replaceAll("{name}", serverName))
+        .join("\n") + "\n";
+      await fs.writeFile(cfgPath, cfg, "utf-8");
+    }
+  }
   const record: ServerRecord = {
     ...server,
     type: template.label,
@@ -172,6 +219,7 @@ export async function importTemplate(
     status: "stopped",
     pid: undefined,
   };
+  if (Object.keys(settings).length > 0) record.settings = settings;
   await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
   return { ok: true, record };
 }
@@ -248,15 +296,30 @@ export async function startServer(
   if (!server) {
     return { error: "Server not found.", status: 404 };
   }
-  const existing = procs.get(name) ?? server.pid;
+  const existing = procs.get(name)?.pid ?? server.pid;
   if (isAlive(existing)) {
     return { error: `"${name}" is already running.`, status: 409 };
   }
   const template = server.template ? await getTemplate(server.template) : null;
-  const cmd = template?.start?.trim();
+  let cmd = template?.start?.trim();
   if (!cmd) {
     return { error: "No start command — import a template first.", status: 400 };
   }
+  // Append per-server template args (e.g. FiveM `+set sv_licenseKey <key>`).
+  // Values were pattern-validated at import; still shell-quote defensively.
+  const extraArgs: string[] = [];
+  for (const input of template?.inputs ?? []) {
+    if (!input.appendArg) continue;
+    const value = server.settings?.[input.id]?.trim();
+    if (input.required && !value) {
+      return {
+        error: `"${input.label}" is missing — re-import the template and provide it.`,
+        status: 400,
+      };
+    }
+    if (value) extraArgs.push(input.appendArg.replaceAll("{value}", shellQuote(value)));
+  }
+  if (extraArgs.length > 0) cmd = `${cmd} ${extraArgs.join(" ")}`;
   if (template?.platforms && !template.platforms.includes(process.platform)) {
     return {
       error: `"${template.label}" needs ${template.platforms.join(
@@ -266,19 +329,36 @@ export async function startServer(
     };
   }
   const dir = path.join(DATA_DIR, name);
-  let child;
+  let child: ChildProcess | undefined;
   try {
     const logFd = fsSync.openSync(path.join(dir, "server.log"), "a");
-    child = spawn(cmd, {
+    // `exec` replaces the wrapper shell with the server itself (POSIX), so
+    // child.pid is the real server: Stop signals the right process and no
+    // orphaned shell is left behind.
+    const cmdLine = process.platform === "win32" ? cmd : `exec ${cmd}`;
+    child = spawn(cmdLine, {
       cwd: dir,
       detached: true,
       shell: true,
-      stdio: ["ignore", logFd, logFd],
+      // A held-open stdin pipe: game servers (FXServer included) treat a
+      // closed stdin as "console quit". Never "ignore" here.
+      stdio: ["pipe", logFd, logFd],
     });
+    // Never let a stdin socket error crash the panel.
+    child.stdin?.on("error", () => {});
+    const closeLogFd = () => {
+      try {
+        fsSync.closeSync(logFd);
+      } catch {
+        // Already closed — the stdio copies are dup'd into the child at spawn.
+      }
+    };
+    child.once("spawn", closeLogFd);
+    child.once("error", closeLogFd);
   } catch (e) {
     return { error: `Failed to start: ${String(e)}`, status: 500 };
   }
-  if (!child.pid) {
+  if (!child?.pid) {
     return { error: "Failed to start: no process id.", status: 500 };
   }
   // If the process dies instantly (bad binary, missing shell), fail loudly
@@ -297,7 +377,7 @@ export async function startServer(
     };
   }
   child.unref();
-  procs.set(name, child.pid);
+  procs.set(name, child);
   const record: ServerRecord = { ...server, status: "running", pid: child.pid };
   await fs.writeFile(path.join(dir, META_FILE), JSON.stringify(record, null, 2), "utf-8");
   return { ok: true, pid: child.pid };
@@ -313,13 +393,24 @@ export async function stopServer(
   if (!server) {
     return { error: "Server not found.", status: 404 };
   }
-  const pid = procs.get(name) ?? server.pid;
+  const live = procs.get(name);
   procs.delete(name);
-  if (isAlive(pid)) {
+  if (live && live.exitCode === null && !live.killed) {
+    // Panel-spawned handle: signals the real server (exec'd, same pid).
     try {
-      process.kill(pid as number);
+      live.kill();
     } catch {
       // Already gone — treat as stopped.
+    }
+  } else {
+    // No live handle (e.g. panel restarted) — fall back to the stored pid.
+    const pid = live?.pid ?? server.pid;
+    if (isAlive(pid)) {
+      try {
+        process.kill(pid as number);
+      } catch {
+        // Already gone — treat as stopped.
+      }
     }
   }
   const dir = path.join(DATA_DIR, name);

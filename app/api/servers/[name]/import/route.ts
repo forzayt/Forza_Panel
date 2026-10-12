@@ -11,9 +11,10 @@ export async function POST(
     const { name } = await params;
     const body = (await req.json().catch(() => null)) as {
       templateId?: unknown;
+      inputs?: unknown;
     } | null;
     const templateId = typeof body?.templateId === "string" ? body.templateId : "";
-    const result = await importTemplate(decodeURIComponent(name), templateId);
+    const result = await importTemplate(decodeURIComponent(name), templateId, body?.inputs);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

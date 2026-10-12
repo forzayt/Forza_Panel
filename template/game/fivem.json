@@ -5,5 +5,25 @@
   "description": "CFX FiveM FXServer for Linux. Import downloads the server files, Start runs them.",
   "platforms": ["linux"],
   "download": "https://changelogs-live.fivem.net/api/changelog/versions/linux/server",
-  "start": "bash run.sh +exec server.cfg"
+  "start": "bash run.sh +exec server.cfg",
+  "serverCfg": [
+    "endpoint_add_tcp \"0.0.0.0:30120\"",
+    "endpoint_add_udp \"0.0.0.0:30120\"",
+    "set sv_hostname \"{name}\"",
+    "sets sv_projectName \"{name}\"",
+    "sets sv_projectDesc \"Powered by ForzaPanel\"",
+    "set sv_maxplayers 32",
+    "sv_scriptHookAllowed 0"
+  ],
+  "inputs": [
+    {
+      "id": "licenseKey",
+      "label": "CFX License Key",
+      "placeholder": "cfxk_xxxxxxxxxxxxxxxxxxxxxxxx",
+      "help": "Required — the server will not start without it. Get a free key at https://portal.cfx.re/servers/registration-keys",
+      "required": true,
+      "pattern": "^cfxk_[A-Za-z0-9_-]{8,}$",
+      "appendArg": "+set sv_licenseKey {value}"
+    }
+  ]
 }

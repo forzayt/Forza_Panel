@@ -26,9 +26,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost (port 80 — no port in the URL). Ports below 1024
-need elevated privileges, so run as Administrator on Windows or with
-`sudo` on Linux.
+Open http://localhost:3000.
 
 ```bash
 npm run build   # production build (stop the dev server first — see below)
@@ -43,6 +41,31 @@ Live system overview of the machine running the panel, polling
 `GET /api/system` every 2 seconds: CPU, memory, disk, charts, and system info.
 The header pill shows online status plus the machine's **public IP**
 (`GET /api/ip` via ipify, LAN fallback) with a copy button.
+
+### Processes (`/system/processes`)
+
+Task-Manager-style live process list, polling `GET /api/processes`
+every 4 seconds: top 60 processes by CPU with per-process CPU %, memory,
+PID, sortable columns, and search. Windows uses perf-counter sampling,
+Linux uses `ps`.
+
+### Network (`/network`)
+
+Live interfaces with status, MAC, IPv4/IPv6, and per-interface
+download/upload rates computed from cumulative counters, polling
+`GET /api/network` every 4 seconds. Windows reads adapter counters via
+PowerShell, Linux reads `/proc/net/dev`.
+
+### Databases (`/databases`)
+
+MySQL card (clickable) for now. Creating a database makes
+`data/databases/<name>/` with a `database.json` inside — same
+folder-per-item layout as servers, listed straight from disk. Inside a
+database, **Install Database** mirrors the server import flow: a searchable
+option list, a confirm step, then `apt install mysql-server` on Linux
+(panel must be root or have passwordless sudo). The button hides once a
+MySQL binary is detected. A live MySQL connection, other engines, and user
+management arrive in a later phase.
 
 ### Servers (`/servers`)
 
@@ -60,7 +83,10 @@ server, and the list is read straight from disk.
   in the server folder. Import also tags the server type (hides Import
   afterwards — already-imported servers don't show it again).
 - **Start** — runs the template's start command detached in the server
-  folder, logging stdout/stderr to `server.log`. Refuses Linux-only
+  folder, logging stdout/stderr to `server.log`. The server keeps an
+  open stdin (FXServer quits instantly without one) and launches via
+  `exec` so the tracked pid is the real server, which is also what Stop
+  signals. Refuses Linux-only
   templates on Windows with a clear error, and fails loudly (exit code +
   log tail) instead of fake-starting when the process dies instantly.
 - **Stop** — kills the tracked process, marks the server stopped.
@@ -80,7 +106,18 @@ server, and the list is read straight from disk.
   "platforms": ["linux"],
   "download": "https://changelogs-live.fivem.net/api/changelog/versions/linux/server",
   "serverCfg": ["endpoint_add_tcp ..."],
-  "start": "bash run.sh +exec server.cfg"
+  "start": "bash run.sh +exec server.cfg",
+  "inputs": [
+    {
+      "id": "licenseKey",
+      "label": "CFX License Key",
+      "placeholder": "cfxk_xxxxxxxxxxxxxxxxxxxxxxxx",
+      "help": "...",
+      "required": true,
+      "pattern": "^cfxk_[A-Za-z0-9_-]{8,}$",
+      "appendArg": "+set sv_licenseKey {value}"
+    }
+  ]
 }
 ```
 
@@ -88,23 +125,41 @@ server, and the list is read straight from disk.
   endpoint exposing `recommended_download`/`latest_download` (legacy HTML
   listings are scraped as a last resort).
 - `platforms` — Start is refused on any other `process.platform`.
-- `serverCfg` (optional) — written as `server.cfg` after extraction.
+- `serverCfg` (optional) — written as `server.cfg` after extraction, on
+  first import only (re-imports never overwrite user edits). `{name}` is
+  replaced with the server name.
+- `inputs` (optional) — values the import dialog asks for before installing
+  (e.g. the FiveM `sv_licenseKey`). Each entry: `id`, `label`, optional
+  `placeholder`/`help`, `required`, and a `pattern` regex enforced
+  server-side. `appendArg` is appended to `start` at launch with `{value}`
+  substituted (shell-quoted) — the key is stored in the server's
+  `server.json` under `settings`, never in the template.
 
 ## API
 
 | Method | Route | Purpose |
 |--------|-------|---------|
 | GET | `/api/system` | Live CPU / memory / disk / system info |
+| GET | `/api/processes` | Live process list (top 60 by CPU) |
+| POST | `/api/processes/[pid]/kill` | Force-terminate a process |
+| GET | `/api/network` | Interfaces, addresses, byte counters |
+| GET | `/api/network/ports` | Listening TCP/UDP ports + owning process |
 | GET | `/api/ip` | Public IP (ipify), LAN fallback |
 | GET | `/api/servers` | List servers from `data/servers/` |
 | POST | `/api/servers` | Create a server (`{ name }`) |
 | GET | `/api/servers/[name]` | One server |
 | DELETE | `/api/servers/[name]` | Remove server folder |
 | GET | `/api/servers/[name]/log?lines=200` | Tail `server.log` |
-| POST | `/api/servers/[name]/import` | Download + extract template (`{ templateId }`) |
+| POST | `/api/servers/[name]/import` | Download + extract template (`{ templateId, inputs? }`) |
 | POST | `/api/servers/[name]/start` | Run the start command |
 | POST | `/api/servers/[name]/stop` | Stop the tracked process |
 | GET | `/api/templates` | List `template/game/*.json` |
+| GET | `/api/databases` | List MySQL database folders |
+| POST | `/api/databases` | Create a database folder (`{ name }`) |
+| GET | `/api/databases/[name]` | One database |
+| DELETE | `/api/databases/[name]` | Remove database folder |
+| GET | `/api/databases/status` | MySQL installed? + version |
+| POST | `/api/databases/install` | apt install mysql-server (Linux) |
 
 ## Project structure
 

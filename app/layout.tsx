@@ -1,4 +1,5 @@
 import Providers from "@/app/providers";
+import RouteLoader from "@/components/RouteLoader";
 import { cn } from "@/utils/cn";
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
@@ -31,9 +32,10 @@ export default function RootLayout({
       className={cn("h-full antialiased", inter.className)}
     >
       <body suppressHydrationWarning className="h-full bg-background-gray-secondary_alt_2">
-        <ThemeProvider defaultTheme="light" enableSystem>
+        <ThemeProvider defaultTheme="dark">
           <Providers>{children}</Providers>
         </ThemeProvider>
+        <RouteLoader />
         <Toaster />
       </body>
     </html>

@@ -8,6 +8,7 @@ import { Progress } from "@/components/tailgrids/core/progress";
 import AreaChart from "@/components/AreaChart";
 import StatusDot from "@/components/StatusDot";
 import UpdatePill from "@/components/UpdatePill";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface SystemInfo {
   cpu: { usage: number; model: string; cores: number };
@@ -110,10 +111,16 @@ function ChartPanel({
 export default function DashboardPage() {
   const [data, setData] = useState<SystemInfo | null>(null);
   const [ip, setIp] = useState<string | null>(null);
+  // Port the browser used to reach the panel — client-only (window), set on
+  // mount so SSR and the first client render agree.
+  const [panelPort, setPanelPort] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [memHistory, setMemHistory] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Chart time labels depend on Date.now() — keep them client-only so SSR
+  // and the first client render agree (empty) and hydration doesn't mismatch.
+  const [xLabels, setXLabels] = useState<string[]>([]);
 
   const fetchSystem = useCallback(async () => {
     try {
@@ -136,6 +143,7 @@ export default function DashboardPage() {
   }, [fetchSystem]);
 
   useEffect(() => {
+    setPanelPort(window.location.port || null);
     // IP rarely changes — fetch once on mount.
     fetch("/api/ip", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
@@ -145,14 +153,32 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const updateLabels = () => {
+      const now = Date.now();
+      setXLabels(
+        [10, 8, 6, 4, 2, 0].map((m) =>
+          formatClock(new Date(now - m * 60 * 1000))
+        )
+      );
+    };
+    updateLabels();
+    const id = setInterval(updateLabels, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const cpu = data?.cpu.usage ?? 0;
   const mem = data?.memory.usage ?? 0;
   const disk = data?.disk.usage ?? 0;
 
+  // Full panel address for display + copy. Port omitted when the browser
+  // used a default port (empty window.location.port).
+  const panelAddress = ip ? (panelPort ? `${ip}:${panelPort}` : ip) : null;
+
   const copyIp = async () => {
-    if (!ip) return;
+    if (!panelAddress) return;
     try {
-      await navigator.clipboard.writeText(ip);
+      await navigator.clipboard.writeText(panelAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -161,11 +187,6 @@ export default function DashboardPage() {
   };
 
   const cpuTrend = cpuHistory.length > 5 ? cpu - cpuHistory[0] : 0;
-
-  const now = Date.now();
-  const xLabels = [10, 8, 6, 4, 2, 0].map((m) =>
-    formatClock(new Date(now - m * 60 * 1000))
-  );
 
   return (
     <AppShell>
@@ -192,12 +213,12 @@ export default function DashboardPage() {
               </Badge>
               <span className="hidden h-4 w-px bg-border-primary sm:block" />
               <span className="hidden items-center gap-1.5 font-mono-tech text-text-tertiary sm:flex">
-                {ip ?? "…"}
+                {panelAddress ?? "…"}
                 {ip && (
                   <button
                     onClick={copyIp}
-                    aria-label="Copy IP address"
-                    title={copied ? "Copied!" : "Copy IP address"}
+                    aria-label="Copy server address"
+                    title={copied ? "Copied!" : "Copy server address"}
                     className="rounded p-0.5 text-text-tertiary transition-colors hover:text-text-primary"
                   >
                     {copied ? (
@@ -214,6 +235,7 @@ export default function DashboardPage() {
                 )}
               </span>
             </Card>
+            <ThemeToggle />
           </div>
         </div>
 

@@ -48,7 +48,7 @@ export const NAV_DATA: NavSection[] = [
       },
       {
         title: "Databases",
-        url: "#databases",
+        url: "/databases",
         icon: <InvoiceIcon />,
         items: [],
       },
@@ -78,7 +78,7 @@ export const NAV_DATA: NavSection[] = [
       },
       {
         title: "Network",
-        url: "#network",
+        url: "/network",
         icon: <PieChartIcon />,
         items: [],
       },
@@ -88,8 +88,8 @@ export const NAV_DATA: NavSection[] = [
     label: "SYSTEM",
     items: [
       {
-        title: "Tasks",
-        url: "#tasks",
+        title: "Processes",
+        url: "/system/processes",
         icon: <TaskIcon />,
         items: [],
       },
