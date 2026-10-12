@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/common/app-shell";
+import { Badge } from "@/components/tailgrids/core/badge";
 import { Button } from "@/components/tailgrids/core/button";
 import { Card, CardTitle } from "@/components/tailgrids/core/card";
 import {
@@ -84,6 +85,9 @@ export default function DatabaseDetailPage() {
     setInstallQuery("");
     setIsInstalling(false);
     setIsInstallOpen(true);
+    // Refresh real engine status so each row pill shows
+    // Installed / Not installed from the machine.
+    fetchMysqlStatus();
   };
 
   const filteredOptions = INSTALL_OPTIONS.filter((o) => {
@@ -346,26 +350,47 @@ export default function DatabaseDetailPage() {
                       No options found.
                     </p>
                   )}
-                  {filteredOptions.map((o) => (
-                    <button
-                      key={o.id}
-                      onClick={handleInstall}
-                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary"
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
-                        {o.label.charAt(0).toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-text-primary">
-                          {o.label}
+                  {filteredOptions.map((o) => {
+                    // Today every option maps to the MySQL engine check.
+                    // When more INSTALL_OPTIONS arrive, look up per-engine status here.
+                    const checking = mysql === null;
+                    const installed = mysql?.installed ?? false;
+                    return (
+                      <button
+                        key={o.id}
+                        onClick={handleInstall}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
+                          {o.label.charAt(0).toUpperCase()}
                         </span>
-                        <span className="block truncate text-xs text-text-tertiary">
-                          {o.hint}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-text-primary">
+                            {o.label}
+                          </span>
+                          <span className="block truncate text-xs text-text-tertiary">
+                            {o.hint}
+                            {installed && mysql?.version ? ` · v${mysql.version}` : ""}
+                          </span>
                         </span>
-                      </span>
-                      <span className="shrink-0 text-xs text-text-tertiary">›</span>
-                    </button>
-                  ))}
+                        <Badge
+                          color={checking ? "gray" : installed ? "success" : "gray"}
+                          size="sm"
+                          className="shrink-0 capitalize"
+                        >
+                          <span
+                            className={`size-1.5 rounded-full ${checking ? "bg-current opacity-50" : installed ? "bg-emerald-500" : "bg-current opacity-50"}`}
+                          />
+                          {checking
+                            ? "Checking…"
+                            : installed
+                              ? "Installed"
+                              : "Not installed"}
+                        </Badge>
+                        <span className="shrink-0 text-xs text-text-tertiary">›</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </DialogBody>
