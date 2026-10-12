@@ -9,6 +9,7 @@ import { AltArrowUpIcon } from "@/utils/icon";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
+import { toast } from "sonner";
 import { isPathActive } from "./utils";
 
 export interface NavItemProps {
@@ -36,6 +37,13 @@ export default function NavItem({
 
   const hasActiveChild = items?.some((item) => item.url && isPathActive(item.url, pathname));
 
+  const handleClick = () => {
+    if (href === "/databases" || label === "Databases") {
+      toast.warning("Databases is under maintenance.");
+    }
+    onItemClick?.();
+  };
+
   // Collapsed: icon-only button centered, no dropdown
   if (collapsed) {
     return (
@@ -44,7 +52,7 @@ export default function NavItem({
           <TooltipTrigger asChild>
             <Link
               href={href ?? items?.[0]?.url ?? "#"}
-              onClick={onItemClick}
+              onClick={handleClick}
               className={cn(
                 "flex items-center justify-center rounded-lg px-3 py-2.5",
                 isActive || hasActiveChild
@@ -102,7 +110,7 @@ export default function NavItem({
               <div key={item.title} className="px-0">
                 <Link
                   href={item.url ?? "#"}
-                  onClick={onItemClick}
+                  onClick={handleClick}
                   className={cn(
                     "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isChildActive
@@ -125,7 +133,7 @@ export default function NavItem({
     href && (
       <Link
         href={href}
-        onClick={onItemClick}
+        onClick={handleClick}
         className={cn(
           "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
           isActive
