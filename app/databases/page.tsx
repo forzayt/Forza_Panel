@@ -80,9 +80,6 @@ export default function MysqlPage() {
           <h1 className="mb-1 text-[28px] leading-8 font-medium text-text-primary">
             Databases
           </h1>
-          <p className="text-sm leading-5 text-text-tertiary">
-            MySQL databases on this machine
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
