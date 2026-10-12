@@ -20,12 +20,20 @@ import InstallLoader from "@/components/InstallLoader";
 import { toast } from "sonner";
 import type { DatabaseRecord } from "@/agent/databases";
 import type { MysqlStatus } from "@/agent/mysql";
+import type { DatabaseTemplateSummary } from "@/agent/templates";
 
-// Same shape as the server import flow: Import opens a searchable
-// list, then a confirm step, then installs. Real engine binaries arrive via
-// apt today; more options plug into INSTALL_OPTIONS later.
-const INSTALL_OPTIONS = [
-  { id: "mysql-apt", label: "MySQL Server", hint: "via apt · Linux only" },
+// Import options come from template/database/*.json via
+// /api/database-templates (see template/database/mysql.json).
+// Fallback keeps the modal usable if the API is unreachable.
+const FALLBACK_OPTIONS: DatabaseTemplateSummary[] = [
+  {
+    id: "mysql",
+    game: "MySQL",
+    label: "MySQL Server",
+    description: "via apt · Linux only",
+    engine: "mysql",
+    inputs: [],
+  },
 ];
 
 // Database detail stub — identity + folder info only. Tables, users, and
@@ -44,6 +52,7 @@ export default function DatabaseDetailPage() {
   const [isInstallOpen, setIsInstallOpen] = useState(false);
   const [installQuery, setInstallQuery] = useState("");
   const [isInstalling, setIsInstalling] = useState(false);
+  const [dbTemplates, setDbTemplates] = useState<DatabaseTemplateSummary[] | null>(null);
 
   const fetchDatabase = useCallback(async () => {
     try {
@@ -81,6 +90,21 @@ export default function DatabaseDetailPage() {
     fetchMysqlStatus();
   }, [fetchMysqlStatus]);
 
+  const fetchDbTemplates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/database-templates", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as { templates: DatabaseTemplateSummary[] };
+      setDbTemplates(json.templates);
+    } catch {
+      // Modal falls back to FALLBACK_OPTIONS — non-fatal.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDbTemplates();
+  }, [fetchDbTemplates]);
+
   const openInstall = () => {
     setInstallQuery("");
     setIsInstalling(false);
@@ -88,18 +112,29 @@ export default function DatabaseDetailPage() {
     // Refresh real engine status so each row pill shows
     // Installed / Not installed from the machine.
     fetchMysqlStatus();
+    fetchDbTemplates();
   };
 
-  const filteredOptions = INSTALL_OPTIONS.filter((o) => {
+  const installOptions = dbTemplates ?? FALLBACK_OPTIONS;
+
+  const filteredOptions = installOptions.filter((o) => {
     const q = installQuery.trim().toLowerCase();
     if (!q) return true;
-    return o.label.toLowerCase().includes(q) || o.hint.toLowerCase().includes(q);
+    return (
+      o.label.toLowerCase().includes(q) ||
+      o.description.toLowerCase().includes(q) ||
+      o.game.toLowerCase().includes(q)
+    );
   });
 
-  const handleInstall = async () => {
+  const handleInstall = async (templateId: string) => {
     setIsInstalling(true);
     try {
-      const res = await fetch("/api/databases/install", { method: "POST" });
+      const res = await fetch("/api/databases/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId }),
+      });
       const json = (await res.json().catch(() => null)) as {
         error?: string;
         version?: string | null;
@@ -115,6 +150,9 @@ export default function DatabaseDetailPage() {
       setIsInstallOpen(false);
       setIsInstalling(false);
       fetchMysqlStatus();
+      // Re-read database.json so the engine flips from "not installed"
+      // and the Import button hides (the only hide condition).
+      fetchDatabase();
     } catch (e) {
       setIsInstalling(false);
       toast.error(e instanceof Error ? e.message : "Install failed.");
@@ -184,21 +222,25 @@ export default function DatabaseDetailPage() {
           </div>
           {database && (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <Button variant="success" appearance="fill" size="md" onPress={openInstall}>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="size-4"
-                >
-                  <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
-                  <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                </svg>
-                Import
-              </Button>
+              {/* The only hide condition: a config was already imported
+                  (engine flipped from "not installed" to e.g. "mysql"). */}
+              {(!database.engine || database.engine === "not installed") && (
+                <Button variant="success" appearance="fill" size="md" onPress={openInstall}>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="size-4"
+                  >
+                    <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
+                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                  </svg>
+                  Import
+                </Button>
+              )}
               <Button variant="danger" appearance="outline" size="md" onPress={openDelete}>
                 <svg
                   viewBox="0 0 24 24"
@@ -351,14 +393,15 @@ export default function DatabaseDetailPage() {
                     </p>
                   )}
                   {filteredOptions.map((o) => {
-                    // Today every option maps to the MySQL engine check.
-                    // When more INSTALL_OPTIONS arrive, look up per-engine status here.
-                    const checking = mysql === null;
-                    const installed = mysql?.installed ?? false;
+                    // Real machine status: mysql engine maps to /api/databases/status.
+                    // Future engines plug their own status check here.
+                    const isMysqlEngine = o.engine === "mysql";
+                    const checking = isMysqlEngine && mysql === null;
+                    const installed = isMysqlEngine ? (mysql?.installed ?? false) : false;
                     return (
                       <button
                         key={o.id}
-                        onClick={handleInstall}
+                        onClick={() => handleInstall(o.id)}
                         className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary"
                       >
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
@@ -369,7 +412,7 @@ export default function DatabaseDetailPage() {
                             {o.label}
                           </span>
                           <span className="block truncate text-xs text-text-tertiary">
-                            {o.hint}
+                            {o.description}
                             {installed && mysql?.version ? ` · v${mysql.version}` : ""}
                           </span>
                         </span>

@@ -1,0 +1,10 @@
+{
+  "id": "mysql",
+  "game": "MySQL",
+  "label": "MySQL Server",
+  "description": "MySQL Server via apt · Linux only",
+  "platforms": ["linux"],
+  "engine": "mysql",
+  "installMethod": "apt",
+  "package": "mysql-server"
+}

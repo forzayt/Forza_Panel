@@ -116,3 +116,70 @@ export async function getTemplate(id: string): Promise<GameTemplate | null> {
     return null;
   }
 }
+
+// ── Database engine templates (template/database/*.json) ──
+// Same id rules as game templates. Each file describes one importable
+// DB type (e.g. mysql.json). Listing stays lenient: malformed files are
+// skipped so one bad JSON never breaks the Import modal.
+
+export interface DatabaseTemplate {
+  id: string;
+  game: string;
+  label: string;
+  description: string;
+  platforms?: string[];
+  engine: string;
+  installMethod?: string;
+  package?: string;
+  inputs?: TemplateInput[];
+}
+
+export interface DatabaseTemplateSummary {
+  id: string;
+  game: string;
+  label: string;
+  description: string;
+  engine: string;
+  inputs: TemplateInput[];
+}
+
+const DATABASE_TEMPLATE_DIR = path.join(process.cwd(), "template", "database");
+
+export async function listDatabaseTemplates(): Promise<DatabaseTemplateSummary[]> {
+  await fs.mkdir(DATABASE_TEMPLATE_DIR, { recursive: true });
+  const entries = await fs.readdir(DATABASE_TEMPLATE_DIR);
+  const out: DatabaseTemplateSummary[] = [];
+  for (const f of entries) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      const raw = await fs.readFile(path.join(DATABASE_TEMPLATE_DIR, f), "utf-8");
+      const t = JSON.parse(raw) as Partial<DatabaseTemplate>;
+      if (typeof t.id !== "string" || !isValidTemplateId(t.id)) continue;
+      out.push({
+        id: t.id,
+        game: typeof t.game === "string" ? t.game : "",
+        label: typeof t.label === "string" ? t.label : t.id,
+        description: typeof t.description === "string" ? t.description : "",
+        engine: typeof t.engine === "string" && t.engine ? t.engine : t.id,
+        inputs: parseTemplateInputs(t.inputs),
+      });
+    } catch {
+      continue;
+    }
+  }
+  out.sort((a, b) => a.label.localeCompare(b.label));
+  return out;
+}
+
+export async function getDatabaseTemplate(id: string): Promise<DatabaseTemplate | null> {
+  if (!isValidTemplateId(id)) return null;
+  try {
+    const raw = await fs.readFile(path.join(DATABASE_TEMPLATE_DIR, `${id}.json`), "utf-8");
+    const t = JSON.parse(raw) as DatabaseTemplate;
+    if (t.id !== id) return null;
+    t.inputs = parseTemplateInputs(t.inputs);
+    return t;
+  } catch {
+    return null;
+  }
+}
