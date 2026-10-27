@@ -70,6 +70,26 @@ export function ServicesIcon() {
   );
 }
 
+export function PackagesIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <path
+        d="M9 1.875L15.75 5.625V12.375L9 16.125L2.25 12.375V5.625L9 1.875Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2.25 5.625L9 9.375L15.75 5.625"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M9 9.375V16.125" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function UserIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">

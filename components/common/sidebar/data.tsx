@@ -5,6 +5,7 @@ import {
   HomeIcon,
   InvoiceIcon,
   LetterIcon,
+  PackagesIcon,
   PieChartIcon,
   ServicesIcon,
   TableIcon,
@@ -74,6 +75,12 @@ export const NAV_DATA: NavSection[] = [
         title: "Services",
         url: "#services",
         icon: <ServicesIcon />,
+        items: [],
+      },
+      {
+        title: "Packages",
+        url: "/packages",
+        icon: <PackagesIcon />,
         items: [],
       },
       {
