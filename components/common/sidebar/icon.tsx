@@ -57,6 +57,19 @@ export function CalendarIcon() {
   );
 }
 
+export function ServicesIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <path d="M2.25 5.25H4.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8.75 5.25H15.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="6.75" cy="5.25" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2.25 12.75H8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M12.5 12.75H15.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="10.5" cy="12.75" r="2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export function UserIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">

@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import {
   AlphabetIcon,
-  CalendarIcon,
   ChatIcon,
   HomeIcon,
   InvoiceIcon,
   LetterIcon,
   PieChartIcon,
+  ServicesIcon,
   TableIcon,
   TaskIcon,
   UserIcon,
@@ -71,9 +71,9 @@ export const NAV_DATA: NavSection[] = [
         items: [],
       },
       {
-        title: "Backups",
-        url: "#backups",
-        icon: <CalendarIcon />,
+        title: "Services",
+        url: "#services",
+        icon: <ServicesIcon />,
         items: [],
       },
       {
