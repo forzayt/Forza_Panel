@@ -239,12 +239,11 @@ export default function Sidebar({
                             variant='danger'
                             appearance='fill'
                             size='sm'
-                            onPress={handleLogout}
-                            isDisabled={isLoggingOut}
+                            onPress={() => setIsLogoutOpen(true)}
                             className='w-full gap-2'
                         >
                             <LogoutIcon />
-                            {isLoggingOut ? 'Signing out…' : 'Logout'}
+                            Logout
                         </Button>
                     </>
                 ) : (
