@@ -70,22 +70,22 @@ export function ServicesIcon() {
   );
 }
 
-export function PackagesIcon() {
+export function LibrariesIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">
       <path
-        d="M9 1.875L15.75 5.625V12.375L9 16.125L2.25 12.375V5.625L9 1.875Z"
+        d="M9 3.75C7.8 2.85 5.85 2.475 3 2.775V14.1C5.85 13.8 7.8 14.175 9 15.075"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
       <path
-        d="M2.25 5.625L9 9.375L15.75 5.625"
+        d="M9 3.75C10.2 2.85 12.15 2.475 15 2.775V14.1C12.15 13.8 10.2 14.175 9 15.075"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
-      <path d="M9 9.375V16.125" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M9 3.75V15.075" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }

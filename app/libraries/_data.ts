@@ -1,33 +1,33 @@
-// Curated list of popular packages for the stacks ForzaPanel runs on.
-// Purely informational for now — the page shows the install command and
-// copies it to the clipboard. No installs are executed from the browser.
+// Curated list of popular libraries for the stacks ForzaPanel runs on.
+// Purely informational — the page shows the install command and copies it to
+// the clipboard. No installs are executed from the browser.
 
-export interface PackageItem {
+export interface LibraryItem {
   name: string;
   description: string;
   install: string;
   tags: string[];
 }
 
-export interface PackageGroup {
+export interface LibraryGroup {
   id: string;
   label: string;
-  runtime: string;
+  registry: string;
   description: string;
   icon: string;
   accent: string;
-  packages: PackageItem[];
+  libraries: LibraryItem[];
 }
 
-export const PACKAGE_GROUPS: PackageGroup[] = [
+export const LIBRARY_GROUPS: LibraryGroup[] = [
   {
     id: "node",
     label: "Node.js",
-    runtime: "npm",
-    description: "Server-side JavaScript and tooling",
+    registry: "npm",
+    description: "JavaScript and TypeScript libraries",
     icon: "N",
     accent: "bg-emerald-500/10 text-emerald-500",
-    packages: [
+    libraries: [
       {
         name: "express",
         description: "Fast, unopinionated web framework for APIs and sites.",
@@ -81,11 +81,11 @@ export const PACKAGE_GROUPS: PackageGroup[] = [
   {
     id: "python",
     label: "Python",
-    runtime: "pip",
-    description: "Scripts, web services and data tooling",
+    registry: "pip",
+    description: "Python libraries and frameworks",
     icon: "Py",
     accent: "bg-sky-500/10 text-sky-500",
-    packages: [
+    libraries: [
       {
         name: "requests",
         description: "Human-friendly HTTP library.",
@@ -139,11 +139,11 @@ export const PACKAGE_GROUPS: PackageGroup[] = [
   {
     id: "php",
     label: "PHP",
-    runtime: "composer",
-    description: "Libraries pulled in with Composer",
+    registry: "composer",
+    description: "PHP libraries pulled in with Composer",
     icon: "P",
     accent: "bg-violet-500/10 text-violet-500",
-    packages: [
+    libraries: [
       {
         name: "laravel/framework",
         description: "Full-stack PHP framework with ORM and queues.",
@@ -182,113 +182,9 @@ export const PACKAGE_GROUPS: PackageGroup[] = [
       },
     ],
   },
-  {
-    id: "databases",
-    label: "MySQL & Databases",
-    runtime: "apt",
-    description: "SQL and key-value servers",
-    icon: "DB",
-    accent: "bg-orange-500/10 text-orange-400",
-    packages: [
-      {
-        name: "mysql-server",
-        description: "Oracle MySQL 8 server.",
-        install: "sudo apt install mysql-server",
-        tags: ["sql", "server"],
-      },
-      {
-        name: "mariadb-server",
-        description: "Drop-in MySQL replacement.",
-        install: "sudo apt install mariadb-server",
-        tags: ["sql", "server"],
-      },
-      {
-        name: "postgresql",
-        description: "Advanced open-source SQL server.",
-        install: "sudo apt install postgresql",
-        tags: ["sql", "server"],
-      },
-      {
-        name: "redis-server",
-        description: "In-memory cache and key-value store.",
-        install: "sudo apt install redis-server",
-        tags: ["cache", "nosql"],
-      },
-      {
-        name: "mongodb-community",
-        description: "Document database for JSON-shaped data.",
-        install: "sudo apt install mongodb-community",
-        tags: ["nosql"],
-      },
-      {
-        name: "sqlite3",
-        description: "Embedded, file-based SQL engine.",
-        install: "sudo apt install sqlite3",
-        tags: ["sql", "embedded"],
-      },
-      {
-        name: "phpmyadmin",
-        description: "Web UI for managing MySQL and MariaDB.",
-        install: "sudo apt install phpmyadmin",
-        tags: ["sql", "ui"],
-      },
-    ],
-  },
-  {
-    id: "system",
-    label: "System tools",
-    runtime: "apt",
-    description: "Utilities for running game servers",
-    icon: "S",
-    accent: "bg-cyan-500/10 text-cyan-400",
-    packages: [
-      {
-        name: "git",
-        description: "Version control for templates and configs.",
-        install: "sudo apt install git",
-        tags: ["dev"],
-      },
-      {
-        name: "curl",
-        description: "HTTP client for scripts and API checks.",
-        install: "sudo apt install curl",
-        tags: ["network"],
-      },
-      {
-        name: "nginx",
-        description: "Reverse proxy and static web server.",
-        install: "sudo apt install nginx",
-        tags: ["web", "proxy"],
-      },
-      {
-        name: "docker.io",
-        description: "Container runtime for isolated services.",
-        install: "sudo apt install docker.io",
-        tags: ["containers"],
-      },
-      {
-        name: "screen",
-        description: "Detachable terminal sessions for game servers.",
-        install: "sudo apt install screen",
-        tags: ["terminal"],
-      },
-      {
-        name: "ufw",
-        description: "Simple host firewall.",
-        install: "sudo apt install ufw",
-        tags: ["security"],
-      },
-      {
-        name: "ffmpeg",
-        description: "Audio and video transcoding suite.",
-        install: "sudo apt install ffmpeg",
-        tags: ["media"],
-      },
-    ],
-  },
 ];
 
-export const TOTAL_PACKAGES = PACKAGE_GROUPS.reduce(
-  (sum, group) => sum + group.packages.length,
+export const TOTAL_LIBRARIES = LIBRARY_GROUPS.reduce(
+  (sum, group) => sum + group.libraries.length,
   0,
 );

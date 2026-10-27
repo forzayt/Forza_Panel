@@ -7,7 +7,12 @@ import { Card } from "@/components/tailgrids/core/card";
 import { Input } from "@/components/tailgrids/core/input";
 import { cn } from "@/utils/cn";
 import { toast } from "sonner";
-import { PACKAGE_GROUPS, TOTAL_PACKAGES, type PackageGroup, type PackageItem } from "./_data";
+import {
+  LIBRARY_GROUPS,
+  TOTAL_LIBRARIES,
+  type LibraryGroup,
+  type LibraryItem,
+} from "./_data";
 
 function CopyCommand({ command, name }: { command: string; name: string }) {
   const [copied, setCopied] = useState(false);
@@ -40,7 +45,7 @@ function CopyCommand({ command, name }: { command: string; name: string }) {
   );
 }
 
-function PackageRow({ pkg, accent }: { pkg: PackageItem; accent: string }) {
+function LibraryRow({ library, accent }: { library: LibraryItem; accent: string }) {
   return (
     <Card className="py-3.5">
       <div className="flex items-start gap-3">
@@ -50,30 +55,30 @@ function PackageRow({ pkg, accent }: { pkg: PackageItem; accent: string }) {
             accent,
           )}
         >
-          {pkg.name.charAt(0).toUpperCase()}
+          {library.name.charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate font-mono-tech text-sm font-medium text-text-primary">
-              {pkg.name}
+              {library.name}
             </p>
             <span className="flex flex-wrap gap-1">
-              {pkg.tags.map((tag) => (
+              {library.tags.map((tag) => (
                 <Badge key={tag} color="gray" size="sm">
                   {tag}
                 </Badge>
               ))}
             </span>
           </div>
-          <p className="mt-0.5 text-xs leading-5 text-text-tertiary">{pkg.description}</p>
-          <CopyCommand command={pkg.install} name={pkg.name} />
+          <p className="mt-0.5 text-xs leading-5 text-text-tertiary">{library.description}</p>
+          <CopyCommand command={library.install} name={library.name} />
         </div>
       </div>
     </Card>
   );
 }
 
-function PackageSection({ group }: { group: PackageGroup }) {
+function LibrarySection({ group }: { group: LibraryGroup }) {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -89,44 +94,44 @@ function PackageSection({ group }: { group: PackageGroup }) {
           <h2 className="text-sm font-semibold text-text-primary">
             {group.label}
             <span className="ml-2 font-mono-tech text-xs font-normal text-text-tertiary">
-              {group.packages.length}
+              {group.libraries.length}
             </span>
           </h2>
           <p className="truncate text-xs text-text-tertiary">{group.description}</p>
         </div>
         <Badge color="gray" size="sm" className="ml-auto font-mono-tech">
-          {group.runtime}
+          {group.registry}
         </Badge>
       </div>
 
       <div className="grid gap-2">
-        {group.packages.map((pkg) => (
-          <PackageRow key={pkg.name} pkg={pkg} accent={group.accent} />
+        {group.libraries.map((library) => (
+          <LibraryRow key={library.name} library={library} accent={group.accent} />
         ))}
       </div>
     </section>
   );
 }
 
-export default function PackagesPage() {
+export default function LibrariesPage() {
   const [query, setQuery] = useState("");
   const [activeGroup, setActiveGroup] = useState<string>("all");
 
   const visibleGroups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matches = (pkg: PackageItem) =>
+    const matches = (library: LibraryItem) =>
       !q ||
-      [pkg.name, pkg.description, pkg.install, ...pkg.tags]
+      [library.name, library.description, library.install, ...library.tags]
         .join(" ")
         .toLowerCase()
         .includes(q);
 
-    return PACKAGE_GROUPS.filter((group) => activeGroup === "all" || group.id === activeGroup)
-      .map((group) => ({ ...group, packages: group.packages.filter(matches) }))
-      .filter((group) => group.packages.length > 0);
+    return LIBRARY_GROUPS.filter((group) => activeGroup === "all" || group.id === activeGroup)
+      .map((group) => ({ ...group, libraries: group.libraries.filter(matches) }))
+      .filter((group) => group.libraries.length > 0);
   }, [query, activeGroup]);
 
-  const visibleCount = visibleGroups.reduce((sum, group) => sum + group.packages.length, 0);
+  const visibleCount = visibleGroups.reduce((sum, group) => sum + group.libraries.length, 0);
 
   return (
     <AppShell>
@@ -134,14 +139,14 @@ export default function PackagesPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="mb-1 text-[28px] leading-8 font-medium text-text-primary">
-              Packages
+              Libraries
             </h1>
             <p className="text-sm leading-5 text-text-tertiary">
-              Popular packages for the stacks you run — copy a command to install.
+              Popular libraries for the stacks you run — copy a command to install.
             </p>
           </div>
           <Badge color="primary" size="sm">
-            {TOTAL_PACKAGES} packages · {PACKAGE_GROUPS.length} ecosystems
+            {TOTAL_LIBRARIES} libraries · {LIBRARY_GROUPS.length} ecosystems
           </Badge>
         </div>
 
@@ -150,8 +155,8 @@ export default function PackagesPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search packages, commands or tags…"
-              aria-label="Search packages"
+              placeholder="Search libraries, commands or tags…"
+              aria-label="Search libraries"
               className="w-full"
             />
           </div>
@@ -168,7 +173,7 @@ export default function PackagesPage() {
             >
               All
             </button>
-            {PACKAGE_GROUPS.map((group) => (
+            {LIBRARY_GROUPS.map((group) => (
               <button
                 key={group.id}
                 type="button"
@@ -189,19 +194,21 @@ export default function PackagesPage() {
         {visibleGroups.length === 0 && (
           <Card>
             <p className="py-4 text-center text-sm text-text-tertiary">
-              No packages match “{query.trim()}”.
+              No libraries match “{query.trim()}”.
             </p>
           </Card>
         )}
 
         {visibleGroups.map((group) => (
-          <PackageSection key={group.id} group={group} />
+          <LibrarySection key={group.id} group={group} />
         ))}
 
         {visibleGroups.length > 0 && (
           <p className="pt-1 text-center text-[11px] text-text-tertiary">
-            Showing {visibleCount} of {TOTAL_PACKAGES} packages · commands assume Debian/Ubuntu
-            with <span className="font-mono-tech">apt</span>
+            Showing {visibleCount} of {TOTAL_LIBRARIES} libraries · commands are plain{" "}
+            <span className="font-mono-tech">npm</span>,{" "}
+            <span className="font-mono-tech">pip</span> and{" "}
+            <span className="font-mono-tech">composer</span> installs
           </p>
         )}
       </div>
