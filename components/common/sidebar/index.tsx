@@ -264,8 +264,7 @@ export default function Sidebar({
                             iconOnly
                             aria-label='Logout'
                             title='Logout'
-                            onPress={handleLogout}
-                            isDisabled={isLoggingOut}
+                            onPress={() => setIsLogoutOpen(true)}
                         >
                             <LogoutIcon />
                         </Button>
