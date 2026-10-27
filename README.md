@@ -6,18 +6,36 @@ live logs — all from one dashboard.
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20+
 - A **Linux host** (or WSL) to actually run game servers — the FiveM
   FXServer binaries are Linux-only. The panel UI itself runs anywhere.
 - `tar` on PATH (Windows 10+ and all Linux distros ship one).
 
 ## Quick start
 
-One command on a fresh VPS (installs the latest Node.js LTS, clones, installs, runs dev):
+One command on a fresh VPS — installs the latest Node.js LTS, clones, installs
+dependencies, installs the privileged helper, builds the production bundle and
+registers **a systemd service** so the panel starts on boot and keeps running
+after you close the terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/forzayt/Forza_Panel/main/install.sh | bash
 ```
+
+Re-running the same command updates the checkout, rebuilds and restarts the
+service. Override `PORT`, `APP_DIR`, `APP_USER` or `SERVICE_NAME` in front of
+`bash`, e.g. `PORT=8080 bash install.sh`.
+
+```bash
+sudo systemctl status forzapanel    # is it running?
+sudo journalctl -u forzapanel -f    # live logs
+sudo systemctl restart forzapanel   # after editing .env / admin.json
+sudo systemctl stop forzapanel
+```
+
+On hosts without systemd (containers, plain WSL) the script starts the panel
+detached with `setsid` instead — it survives the terminal closing, but you have
+to start it yourself after a reboot.
 
 Or manually:
 
@@ -306,12 +324,12 @@ API routes only call into it.
 ## Troubleshooting
 
 - **`EACCES: permission denied` in `.next/`** — some files got created as
-  root (an earlier `sudo` run). Fix ownership once and stop using `sudo`
-  (port 3000 needs no privileges):
+  root (an earlier `sudo` run). Fix ownership once and restart the service:
   ```bash
-  sudo chown -R ubuntu:ubuntu ~/forzapanel
+  sudo chown -R "$USER:$USER" ~/forzapanel
   rm -rf ~/forzapanel/.next
-  npm run dev
+  cd ~/forzapanel && npm run build
+  sudo systemctl restart forzapanel
   ```
 - **`next start` says "Could not find a production build"** — run
   `npm run build` first; `start` only serves an existing build.
@@ -336,6 +354,17 @@ API routes only call into it.
   `sudo bash scripts/install-privileges.sh`. A reverse proxy in front of the
   panel can buffer too — keep `X-Accel-Buffering: no` (sent by the panel) and
   disable `proxy_buffering` for the streaming routes in nginx.
+- **Panel not reachable after `install.sh`** — the service logs say why:
+  `sudo journalctl -u forzapanel -n 80 --no-pager`. Most common causes: port
+  3000 is already taken (`sudo ss -ltnp | grep :3000`) — re-run with
+  `PORT=8080`, or the production build failed (run `npm run build` in the
+  checkout). `systemctl status forzapanel` shows the unit path
+  (`/etc/systemd/system/forzapanel.service`).
+- **Updating a systemd install** — re-run `install.sh` (pull + rebuild +
+  restart), or manually
+  `git pull && npm i && npm run build && sudo systemctl restart forzapanel`.
+  Stopping the service before `npm run build` avoids the dev/build `.next`
+  clash.
 - **`next build` fails with `/_not-found` or missing chunks** — stop the
   dev server first; dev and build share `.next/` and corrupt each other.
   Delete `.next/` and rebuild clean.
