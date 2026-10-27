@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Card } from "@/components/tailgrids/core/card";
 import { Input } from "@/components/tailgrids/core/input";
 import { cn } from "@/utils/cn";
+import type { LibraryStatus } from "@/agent/libraries";
 import { LIBRARIES, LIBRARY_CATEGORIES, type LibraryItem, type LibraryCategory } from "./_data";
 
 function categoryColor(category: LibraryCategory) {
@@ -14,7 +15,50 @@ function categoryColor(category: LibraryCategory) {
   return "warning" as const;
 }
 
-function LibraryRow({ item }: { item: LibraryItem }) {
+function StatusLabel({
+  status,
+  failed,
+}: {
+  status: LibraryStatus | null | undefined;
+  failed: boolean;
+}) {
+  if (failed) {
+    return (
+      <Badge color="gray" size="sm" className="shrink-0">
+        Unknown
+      </Badge>
+    );
+  }
+  if (!status) {
+    return (
+      <Badge color="gray" size="sm" className="shrink-0">
+        Checking…
+      </Badge>
+    );
+  }
+  if (!status.installed) {
+    return (
+      <Badge color="gray" size="sm" className="shrink-0">
+        Not installed
+      </Badge>
+    );
+  }
+  return (
+    <Badge color="success" size="sm" className="shrink-0">
+      Installed{status.version ? ` ${status.version}` : ""}
+    </Badge>
+  );
+}
+
+function LibraryRow({
+  item,
+  status,
+  failed,
+}: {
+  item: LibraryItem;
+  status: LibraryStatus | null | undefined;
+  failed: boolean;
+}) {
   return (
     <Card className="flex items-center gap-4 py-3.5 transition-colors hover:border-button-primary-outline-stroke">
       <span
@@ -29,7 +73,8 @@ function LibraryRow({ item }: { item: LibraryItem }) {
         <p className="truncate text-sm font-medium text-text-primary">{item.name}</p>
         <p className="truncate text-xs leading-5 text-text-tertiary">{item.description}</p>
       </div>
-      <Badge color={categoryColor(item.category)} size="sm" className="shrink-0">
+      <StatusLabel status={status} failed={failed} />
+      <Badge color={categoryColor(item.category)} size="sm" className="hidden shrink-0 sm:inline-flex">
         {item.category}
       </Badge>
     </Card>
@@ -39,6 +84,32 @@ function LibraryRow({ item }: { item: LibraryItem }) {
 export default function LibrariesPage() {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<LibraryCategory | "all">("all");
+  const [statuses, setStatuses] = useState<Record<string, LibraryStatus> | null>(null);
+  const [statusError, setStatusError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/libraries", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`API responded ${res.status}`);
+        return res.json() as Promise<{ items: LibraryStatus[] }>;
+      })
+      .then((json) => {
+        if (cancelled) return;
+        setStatuses(
+          Object.fromEntries(
+            json.items.map((item): [string, LibraryStatus] => [item.id, item]),
+          ),
+        );
+        setStatusError(false);
+      })
+      .catch(() => {
+        if (!cancelled) setStatusError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,6 +121,10 @@ export default function LibrariesPage() {
       return inCategory && matches;
     });
   }, [query, activeCategory]);
+
+  const installedCount = statuses
+    ? LIBRARIES.filter((item) => statuses[item.id]?.installed).length
+    : null;
 
   return (
     <AppShell>
@@ -63,8 +138,12 @@ export default function LibrariesPage() {
               Languages, runtimes and databases you can run on this host.
             </p>
           </div>
-          <Badge color="primary" size="sm">
-            {LIBRARIES.length} stacks · {LIBRARY_CATEGORIES.length} categories
+          <Badge color={statusError ? "error" : "primary"} size="sm">
+            {statusError
+              ? "Detection unavailable"
+              : installedCount === null
+                ? `Checking ${LIBRARIES.length} stacks…`
+                : `${installedCount} of ${LIBRARIES.length} installed`}
           </Badge>
         </div>
 
@@ -120,14 +199,27 @@ export default function LibrariesPage() {
         {visible.length > 0 && (
           <div className="space-y-2">
             {visible.map((item) => (
-              <LibraryRow key={item.name} item={item} />
+              <LibraryRow
+                key={item.id}
+                item={item}
+                status={statuses?.[item.id]}
+                failed={statusError}
+              />
             ))}
           </div>
         )}
 
+        {statusError && (
+          <p className="text-center text-[11px] text-text-tertiary">
+            Could not reach <span className="font-mono-tech">/api/libraries</span> — install
+            status is unknown.
+          </p>
+        )}
+
         {visible.length > 0 && (
           <p className="pt-1 text-center text-[11px] text-text-tertiary">
-            Showing {visible.length} of {LIBRARIES.length} stacks
+            Showing {visible.length} of {LIBRARIES.length} stacks · detected on this host with{" "}
+            <span className="font-mono-tech">--version</span>
           </p>
         )}
       </div>

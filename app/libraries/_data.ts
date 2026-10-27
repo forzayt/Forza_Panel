@@ -4,6 +4,7 @@
 export type LibraryCategory = "Language" | "Runtime" | "Database";
 
 export interface LibraryItem {
+  id: string;
   name: string;
   description: string;
   category: LibraryCategory;
@@ -13,6 +14,7 @@ export interface LibraryItem {
 
 export const LIBRARIES: LibraryItem[] = [
   {
+    id: "node",
     name: "Node.js",
     description: "JavaScript runtime for panels, APIs and bots.",
     category: "Runtime",
@@ -20,6 +22,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-emerald-500/10 text-emerald-500",
   },
   {
+    id: "python",
     name: "Python",
     description: "General-purpose language for scripts and services.",
     category: "Language",
@@ -27,6 +30,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-sky-500/10 text-sky-500",
   },
   {
+    id: "java",
     name: "Java",
     description: "JVM runtime — required by many game servers.",
     category: "Runtime",
@@ -34,6 +38,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-orange-500/10 text-orange-400",
   },
   {
+    id: "php",
     name: "PHP",
     description: "Server-side scripting for web apps and panels.",
     category: "Language",
@@ -41,6 +46,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-violet-500/10 text-violet-500",
   },
   {
+    id: "go",
     name: "Go",
     description: "Compiled language for small, fast services.",
     category: "Language",
@@ -48,6 +54,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-cyan-500/10 text-cyan-400",
   },
   {
+    id: "rust",
     name: "Rust",
     description: "Systems language for performance-critical tools.",
     category: "Language",
@@ -55,6 +62,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-rose-500/10 text-rose-400",
   },
   {
+    id: "ruby",
     name: "Ruby",
     description: "Ruby and Rails for quick web backends.",
     category: "Language",
@@ -62,6 +70,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-red-500/10 text-red-400",
   },
   {
+    id: "dotnet",
     name: ".NET",
     description: "C# runtime for ASP.NET services and tools.",
     category: "Runtime",
@@ -69,6 +78,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-indigo-500/10 text-indigo-400",
   },
   {
+    id: "mysql",
     name: "MySQL",
     description: "Relational database used by most game panels.",
     category: "Database",
@@ -76,6 +86,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-amber-500/10 text-amber-500",
   },
   {
+    id: "mariadb",
     name: "MariaDB",
     description: "Drop-in MySQL replacement.",
     category: "Database",
@@ -83,6 +94,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-teal-500/10 text-teal-400",
   },
   {
+    id: "postgresql",
     name: "PostgreSQL",
     description: "Advanced open-source relational database.",
     category: "Database",
@@ -90,6 +102,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-blue-500/10 text-blue-400",
   },
   {
+    id: "mongodb",
     name: "MongoDB",
     description: "Document database for JSON-shaped data.",
     category: "Database",
@@ -97,6 +110,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-lime-500/10 text-lime-500",
   },
   {
+    id: "redis",
     name: "Redis",
     description: "In-memory cache, queues and key-value store.",
     category: "Database",
@@ -104,6 +118,7 @@ export const LIBRARIES: LibraryItem[] = [
     accent: "bg-pink-500/10 text-pink-400",
   },
   {
+    id: "sqlite",
     name: "SQLite",
     description: "Embedded, file-based SQL engine.",
     category: "Database",
