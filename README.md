@@ -26,12 +26,37 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000 — you'll be redirected to `/login` first.
 
 ```bash
 npm run build   # production build (stop the dev server first — see below)
 npm start       # serve the production build
 ```
+
+## Admin login
+
+The panel is password protected. Credentials live in `admin.json` in the
+project root:
+
+```json
+{
+  "username": "admin",
+  "password": "admin"
+}
+```
+
+Defaults: username **admin**, password **admin** — change them before
+exposing the panel to the internet.
+
+- Both fields empty → every route redirects to `/login`, where the first
+  admin account can be created (written back to `admin.json`).
+- A plaintext password is hashed with scrypt on the first successful sign-in
+  and the file is rewritten as `"password": "scrypt$<salt>$<hash>"`.
+- Editing `admin.json` invalidates existing sessions; plaintext is accepted
+  again and re-hashed on the next sign-in.
+- All pages and `/api/*` routes (except the admin status/login/setup/logout
+  endpoints) require a valid session. Logout sits at the bottom of the
+  sidebar and asks for confirmation.
 
 ## How it works
 
