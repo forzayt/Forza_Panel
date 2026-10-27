@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
 import { Button } from "@/components/tailgrids/core/button";
@@ -16,53 +16,11 @@ import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
 import { TextArea } from "@/components/tailgrids/core/text-area";
 import { toast } from "sonner";
+import type { ProjectRecord } from "@/agent/projects";
 
-const STORAGE_KEY = "forzapanel.projects.v1";
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-}
-
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function loadProjects(): Project[] {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is Project =>
-        !!item &&
-        typeof item === "object" &&
-        typeof (item as Project).id === "string" &&
-        typeof (item as Project).name === "string",
-    ).map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: typeof item.description === "string" ? item.description : "",
-      createdAt:
-        typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString(),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function saveProjects(projects: Project[]) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  } catch {
-    // Storage can be full or blocked — the list still works for this session.
-  }
-}
-
+// Projects are folders on disk: creating one makes
+// data/projects/<name>/project.json — same folder-per-item layout as
+// servers and databases.
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
@@ -73,7 +31,13 @@ function formatDate(value: string) {
   });
 }
 
-function ProjectCard({ project, onDelete }: { project: Project; onDelete: () => void }) {
+function ProjectCard({
+  project,
+  onDelete,
+}: {
+  project: ProjectRecord;
+  onDelete: () => void;
+}) {
   return (
     <Card className="flex flex-col gap-3 transition-colors hover:border-button-primary-outline-stroke">
       <div className="flex items-start gap-3">
@@ -111,31 +75,44 @@ function ProjectCard({ project, onDelete }: { project: Project; onDelete: () => 
       <p className="min-h-10 text-xs leading-5 text-text-secondary">
         {project.description.trim() || "No description yet."}
       </p>
+
+      <p className="truncate font-mono-tech text-[11px] text-text-tertiary">
+        data/projects/{project.name}/
+      </p>
     </Card>
   );
 }
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [projects, setProjects] = useState<ProjectRecord[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState("");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    setProjects(loadProjects());
-    setIsLoaded(true);
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await fetch("/api/projects", { cache: "no-store" });
+      if (!res.ok) throw new Error(`API responded ${res.status}`);
+      const json = (await res.json()) as { projects: ProjectRecord[] };
+      setProjects(json.projects);
+      setLoadError(false);
+    } catch {
+      setProjects([]);
+      setLoadError(true);
+    }
   }, []);
 
-  const update = (next: Project[]) => {
-    setProjects(next);
-    saveProjects(next);
-  };
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   const openCreate = () => {
     setName("");
@@ -144,39 +121,67 @@ export default function ProjectsPage() {
     setIsCreateOpen(true);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const clean = name.trim();
     if (!clean) {
       setFormError("Please enter a project name.");
       return;
     }
-    if (projects.some((project) => project.name.toLowerCase() === clean.toLowerCase())) {
-      setFormError("A project with that name already exists.");
-      return;
-    }
 
-    const project: Project = {
-      id: newId(),
-      name: clean,
-      description: description.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    update([project, ...projects]);
-    setIsCreateOpen(false);
-    toast.success(`Project "${clean}" created.`);
+    setIsCreating(true);
+    setFormError(null);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: clean, description: description.trim() }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        setFormError(json?.error ?? `Failed to create project (${res.status}).`);
+        return;
+      }
+      setIsCreateOpen(false);
+      toast.success(`Project "${clean}" created.`);
+      fetchProjects();
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Failed to create project.");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    update(projects.filter((project) => project.id !== deleteTarget.id));
-    toast.success(`Project "${deleteTarget.name}" deleted.`);
-    setDeleteTarget(null);
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(deleteTarget.name)}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        toast.error(json?.error ?? `Failed to delete project (${res.status}).`);
+        return;
+      }
+      toast.success(`Project "${deleteTarget.name}" deleted.`);
+      setDeleteTarget(null);
+      fetchProjects();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete project.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const visible = useMemo(() => {
+    const list = projects ?? [];
     const q = query.trim().toLowerCase();
-    if (!q) return projects;
-    return projects.filter((project) =>
+    if (!q) return list;
+    return list.filter((project) =>
       [project.name, project.description].join(" ").toLowerCase().includes(q),
     );
   }, [projects, query]);
@@ -218,14 +223,30 @@ export default function ProjectsPage() {
               className="w-full"
             />
           </div>
-          <Badge color="primary" size="sm">
-            {isLoaded
-              ? `${projects.length} project${projects.length === 1 ? "" : "s"}`
-              : "Loading…"}
+          <Badge color={loadError ? "error" : "primary"} size="sm">
+            {loadError
+              ? "Unavailable"
+              : projects === null
+                ? "Loading…"
+                : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
           </Badge>
         </div>
 
-        {isLoaded && projects.length === 0 && (
+        {projects === null && !loadError && (
+          <Card>
+            <p className="py-4 text-center text-sm text-text-tertiary">Loading projects…</p>
+          </Card>
+        )}
+
+        {loadError && (
+          <Card>
+            <p className="py-4 text-center text-sm text-text-tertiary">
+              Could not load projects. Check <span className="font-mono-tech">/api/projects</span>.
+            </p>
+          </Card>
+        )}
+
+        {projects !== null && !loadError && projects.length === 0 && (
           <Card className="flex flex-col items-center gap-3 py-12 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
               <svg
@@ -242,7 +263,8 @@ export default function ProjectsPage() {
             <div>
               <p className="text-sm font-medium text-text-primary">No projects yet</p>
               <p className="mt-1 text-xs leading-5 text-text-tertiary">
-                Create a project to keep related servers and resources together.
+                Each project is a folder under{" "}
+                <span className="font-mono-tech">data/projects/</span>.
               </p>
             </div>
             <Button variant="primary" appearance="outline" size="sm" onPress={openCreate}>
@@ -251,7 +273,7 @@ export default function ProjectsPage() {
           </Card>
         )}
 
-        {isLoaded && projects.length > 0 && visible.length === 0 && (
+        {projects !== null && !loadError && projects.length > 0 && visible.length === 0 && (
           <Card>
             <p className="py-4 text-center text-sm text-text-tertiary">
               No projects match “{query.trim()}”.
@@ -263,7 +285,7 @@ export default function ProjectsPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((project) => (
               <ProjectCard
-                key={project.id}
+                key={project.name}
                 project={project}
                 onDelete={() => setDeleteTarget(project)}
               />
@@ -271,9 +293,10 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {projects.length > 0 && (
+        {projects !== null && projects.length > 0 && (
           <p className="pt-1 text-center text-[11px] text-text-tertiary">
-            Saved in this browser · <span className="font-mono-tech">{STORAGE_KEY}</span>
+            Stored on this host ·{" "}
+            <span className="font-mono-tech">data/projects/&lt;name&gt;/project.json</span>
           </p>
         )}
       </div>
@@ -294,9 +317,17 @@ export default function ProjectsPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreate();
                 }}
-                placeholder="e.g. FiveM Roleplay"
+                placeholder="e.g. fivem-roleplay"
                 autoFocus
               />
+              {formError ? (
+                <p className="text-sm text-button-error-outline-text">{formError}</p>
+              ) : (
+                <p className="text-xs text-text-tertiary">
+                  Letters, numbers, dashes and underscores — a folder is created under
+                  <span className="font-mono-tech"> data/projects/</span>.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="project-description">Description</Label>
@@ -308,9 +339,6 @@ export default function ProjectsPage() {
                 placeholder="What is this project for? (optional)"
               />
             </div>
-            {formError && (
-              <p className="text-sm text-button-error-outline-text">{formError}</p>
-            )}
           </div>
         </DialogBody>
         <DialogFooter>
@@ -318,11 +346,17 @@ export default function ProjectsPage() {
             variant="primary"
             appearance="outline"
             onPress={() => setIsCreateOpen(false)}
+            isDisabled={isCreating}
           >
             Cancel
           </Button>
-          <Button variant="primary" appearance="fill" onPress={handleCreate}>
-            Create Project
+          <Button
+            variant="primary"
+            appearance="fill"
+            onPress={handleCreate}
+            isDisabled={isCreating}
+          >
+            {isCreating ? "Creating…" : "Create Project"}
           </Button>
         </DialogFooter>
       </Dialog>
@@ -339,7 +373,11 @@ export default function ProjectsPage() {
         </DialogHeader>
         <DialogBody>
           <p className="text-sm text-text-secondary">
-            “{deleteTarget?.name}” will be removed from this browser. This cannot be undone.
+            The folder{" "}
+            <span className="font-mono-tech">
+              data/projects/{deleteTarget?.name}/
+            </span>{" "}
+            and everything inside it will be deleted. This cannot be undone.
           </p>
         </DialogBody>
         <DialogFooter>
@@ -347,11 +385,17 @@ export default function ProjectsPage() {
             variant="primary"
             appearance="outline"
             onPress={() => setDeleteTarget(null)}
+            isDisabled={isDeleting}
           >
             Cancel
           </Button>
-          <Button variant="danger" appearance="fill" onPress={handleDelete}>
-            Delete
+          <Button
+            variant="danger"
+            appearance="fill"
+            onPress={handleDelete}
+            isDisabled={isDeleting}
+          >
+            {isDeleting ? "Deleting…" : "Delete"}
           </Button>
         </DialogFooter>
       </Dialog>

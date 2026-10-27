@@ -69,11 +69,12 @@ The header pill shows online status plus the machine's **public IP**
 
 ### Projects (`/projects`)
 
-Lightweight workspace grouping for related servers and resources. Create a
-project with a name and description; cards show the creation date and can be
-searched or deleted (with a confirmation dialog). Projects are stored in the
-browser (`localStorage` key `forzapanel.projects.v1`) — there is no backend
-yet, so the list is per-browser.
+Lightweight workspace grouping for related servers and resources. Creating a
+project makes a real folder — `data/projects/<name>/project.json` (name,
+description, creation date) — the same folder-per-item layout as servers and
+databases. Cards can be searched; deleting one removes the whole folder after
+a confirmation dialog. Backed by `GET/POST /api/projects` and
+`GET/DELETE /api/projects/<name>`.
 
 ### Processes (`/system/processes`)
 
