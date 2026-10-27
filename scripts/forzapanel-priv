@@ -1,0 +1,121 @@
+#!/bin/bash
+#
+# ForzaPanel privileged helper.
+#
+# Installed to /usr/local/bin/forzapanel-priv (root:root, 0755) and authorized
+# through /etc/sudoers.d/forzapanel, so the panel can run a *small allowlist* of
+# root operations without storing a password:
+#
+#   sudo -n /usr/local/bin/forzapanel-priv apt-update
+#   sudo -n /usr/local/bin/forzapanel-priv apt-install <package> [version]
+#   sudo -n /usr/local/bin/forzapanel-priv apt-remove <package>
+#   sudo -n /usr/local/bin/forzapanel-priv service <start|stop|restart|enable|disable|status> <unit>
+#
+# Anything outside the allowlists is rejected. Keep this file boring: no eval,
+# no shell interpolation of user input, no extra verbs.
+#
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+export LC_ALL=C
+
+# Packages the panel is allowed to install/remove (mirrors agent/libraries.ts).
+APT_PACKAGES=" nodejs python3 default-jdk php-cli golang-go rustc ruby-full dotnet-sdk-8.0 mysql-server mariadb-server postgresql mongodb-org redis-server sqlite3 "
+
+# systemd units the panel is allowed to control.
+SERVICE_UNITS=" mysql mariadb postgresql redis-server mongodb forzapanel "
+
+usage() {
+  cat >&2 <<'EOF'
+usage: forzapanel-priv <command> [args]
+
+  apt-update
+  apt-install <package> [version]
+  apt-remove <package>
+  service <start|stop|restart|enable|disable|status> <unit>
+EOF
+  exit 64
+}
+
+die() {
+  echo "forzapanel-priv: $*" >&2
+  exit 1
+}
+
+is_allowed() {
+  # $1 = value, $2 = space-delimited allowlist
+  case "$2" in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+require_root() {
+  [ "$(id -u)" -eq 0 ] || die "must run as root (use sudo)"
+}
+
+cmd="${1:-}"
+[ -n "$cmd" ] || usage
+shift
+
+case "$cmd" in
+  apt-update)
+    require_root
+    exec apt-get update -y
+    ;;
+
+  apt-install)
+    require_root
+    pkg="${1:-}"
+    version="${2:-}"
+    [ -n "$pkg" ] || usage
+    is_allowed "$pkg" "$APT_PACKAGES" || die "package not allowed: $pkg"
+
+    if [ -n "$version" ]; then
+      # apt version strings: digits, letters, . : + ~ - and underscore.
+      [[ "$version" =~ ^[A-Za-z0-9.+:~_-]+$ ]] || die "invalid version: $version"
+      exec apt-get install -y --allow-downgrades "${pkg}=${version}"
+    fi
+    exec apt-get install -y "$pkg"
+    ;;
+
+  apt-remove)
+    require_root
+    pkg="${1:-}"
+    [ -n "$pkg" ] || usage
+    is_allowed "$pkg" "$APT_PACKAGES" || die "package not allowed: $pkg"
+    exec apt-get remove -y "$pkg"
+    ;;
+
+  service)
+    require_root
+    action="${1:-}"
+    unit="${2:-}"
+    [ -n "$action" ] && [ -n "$unit" ] || usage
+    is_allowed "$unit" "$SERVICE_UNITS" || die "service not allowed: $unit"
+
+    case "$action" in
+      start | stop | restart | enable | disable | status) ;;
+      *) die "action not allowed: $action" ;;
+    esac
+
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+      exec systemctl "$action" "$unit"
+    fi
+
+    # Containers / WSL often have no systemd: fall back to SysV scripts.
+    case "$action" in
+      start | stop | restart | status)
+        exec service "$unit" "$action"
+        ;;
+      *)
+        echo "forzapanel-priv: systemd is not running; cannot $action $unit" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+
+  *)
+    usage
+    ;;
+esac

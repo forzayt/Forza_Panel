@@ -1,6 +1,7 @@
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { describePrivilegeError, runPrivileged } from "./privileges";
 
 const execFileAsync = promisify(execFile);
 
@@ -121,30 +122,17 @@ export interface LibraryDetail extends LibraryStatus {
   versions: string[];
 }
 
-function aptError(step: string, err: unknown): { error: string; status: number } {
+function aptError(
+  step: string,
+  err: unknown
+): { error: string; status: number; code?: string } {
+  // Privilege problems carry a code the UI uses to offer the password prompt.
+  const privilege = describePrivilegeError(err);
+  if (privilege) return privilege;
+
   const msg = err instanceof Error ? err.message : String(err);
-  if (/password is required|no tty present|sudo/i.test(msg)) {
-    return {
-      error:
-        "apt needs privileges: run the panel as root or grant passwordless sudo, then retry.",
-      status: 500,
-    };
-  }
   const tail = msg.trim().split("\n").filter(Boolean).slice(-3).join(" ");
   return { error: `apt ${step} failed: ${tail.slice(0, 250)}`, status: 500 };
-}
-
-function aptRunner() {
-  const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
-  const env = { ...process.env, DEBIAN_FRONTEND: "noninteractive" };
-  return (args: string[]) =>
-    isRoot
-      ? execFileAsync("apt-get", args, { env, timeout: 600_000, maxBuffer: 8 * 1024 * 1024 })
-      : execFileAsync("sudo", ["-n", "apt-get", ...args], {
-          env,
-          timeout: 600_000,
-          maxBuffer: 8 * 1024 * 1024,
-        });
 }
 
 /** Reads installed + installable versions from `apt-cache policy <pkg>`. */
@@ -202,13 +190,18 @@ export async function getLibraryDetail(id: string): Promise<LibraryDetail | null
 }
 
 /**
- * Installs a stack — or switches it to a specific apt version — via apt-get.
- * Runs as root when the panel is root, otherwise through non-interactive sudo.
+ * Installs a stack — or switches it to a specific apt version — through the
+ * privileged helper (`sudo -n /usr/local/bin/forzapanel-priv …`). Hosts without
+ * the helper run the same command through `sudo -S` once the admin has unlocked
+ * root access from the UI.
  */
 export async function installLibrary(
   id: string,
   version?: string
-): Promise<{ ok: true; version: string | null } | { error: string; status: number }> {
+): Promise<
+  | { ok: true; version: string | null }
+  | { error: string; status: number; code?: string }
+> {
   const pkg = APT_PACKAGES[id];
   if (!pkg) {
     return { error: `"${id}" cannot be managed from the panel.`, status: 400 };
@@ -220,18 +213,20 @@ export async function installLibrary(
     };
   }
 
-  const run = aptRunner();
   try {
-    await run(["update", "-y"]);
+    await runPrivileged(["apt-update"]);
   } catch (e) {
     return aptError("update", e);
   }
 
-  // `pkg=version` pins an exact build; --allow-downgrades lets the dropdown
-  // move a stack back to an older release instead of failing.
-  const target = version?.trim() ? `${pkg}=${version.trim()}` : pkg;
+  // A pinned version goes through the helper's `apt-install <pkg> <version>`
+  // path, which adds --allow-downgrades so the dropdown can move a stack back
+  // to an older release instead of failing.
+  const pinned = version?.trim();
   try {
-    await run(["install", "-y", "--allow-downgrades", target]);
+    await runPrivileged(
+      pinned ? ["apt-install", pkg, pinned] : ["apt-install", pkg]
+    );
   } catch (e) {
     return aptError("install", e);
   }
@@ -249,7 +244,7 @@ export async function installLibrary(
 /** Removes a stack's apt package (config files are kept). */
 export async function uninstallLibrary(
   id: string
-): Promise<{ ok: true } | { error: string; status: number }> {
+): Promise<{ ok: true } | { error: string; status: number; code?: string }> {
   const pkg = APT_PACKAGES[id];
   if (!pkg) {
     return { error: `"${id}" cannot be managed from the panel.`, status: 400 };
@@ -261,9 +256,8 @@ export async function uninstallLibrary(
     };
   }
 
-  const run = aptRunner();
   try {
-    await run(["remove", "-y", pkg]);
+    await runPrivileged(["apt-remove", pkg]);
   } catch (e) {
     return aptError("remove", e);
   }

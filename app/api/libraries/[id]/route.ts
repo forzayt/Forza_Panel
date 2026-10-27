@@ -48,7 +48,10 @@ export async function POST(
 
     const result = await installLibrary(decodeURIComponent(id), version);
     if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: result.status });
+      return NextResponse.json(
+        { error: result.error, ...(result.code ? { code: result.code } : {}) },
+        { status: result.status }
+      );
     }
 
     const status = await getLibraryStatus(decodeURIComponent(id));
@@ -72,7 +75,10 @@ export async function DELETE(
     const { id } = await params;
     const result = await uninstallLibrary(decodeURIComponent(id));
     if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: result.status });
+      return NextResponse.json(
+        { error: result.error, ...(result.code ? { code: result.code } : {}) },
+        { status: result.status }
+      );
     }
 
     const status = await getLibraryStatus(decodeURIComponent(id));

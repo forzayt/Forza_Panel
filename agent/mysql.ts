@@ -1,6 +1,7 @@
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { describePrivilegeError, runPrivileged } from "./privileges";
 
 const execFileAsync = promisify(execFile);
 
@@ -29,26 +30,26 @@ export async function getMysqlStatus(): Promise<MysqlStatus> {
   return { installed: false, version: null, platform };
 }
 
-function aptError(step: string, err: unknown): { error: string; status: number } {
+function aptError(
+  step: string,
+  err: unknown,
+): { error: string; status: number; code?: string } {
+  // Privilege problems carry a code the UI uses to offer the password prompt.
+  const privilege = describePrivilegeError(err);
+  if (privilege) return privilege;
+
   const msg = err instanceof Error ? err.message : String(err);
-  if (/password is required|no tty present|sudo/i.test(msg)) {
-    return {
-      error:
-        "apt needs privileges: run the panel as root or grant passwordless sudo, then retry.",
-      status: 500,
-    };
-  }
-  const tail = msg.trim().split("\n").slice(-3).join(" ");
+  const tail = msg.trim().split("\n").filter(Boolean).slice(-3).join(" ");
   return { error: `apt ${step} failed: ${tail.slice(0, 250)}`, status: 500 };
 }
 
 /**
- * Install MySQL Server via apt (Linux only). Runs as root when the panel
- * is root, otherwise via non-interactive sudo (fails fast with a clear
- * message instead of hanging on a password prompt).
+ * Install MySQL Server via the privileged helper (Linux only). The helper is
+ * authorized through sudoers, so no password is needed; hosts without it can
+ * unlock once from the UI and the command runs through `sudo -S`.
  */
 export async function installMysql(): Promise<
-  { ok: true; version: string | null } | { error: string; status: number }
+  { ok: true; version: string | null } | { error: string; status: number; code?: string }
 > {
   if (os.platform() !== "linux") {
     return {
@@ -56,41 +57,24 @@ export async function installMysql(): Promise<
       status: 400,
     };
   }
-  const isRoot =
-    typeof process.getuid === "function" && process.getuid() === 0;
-  const run = (args: string[]) =>
-    isRoot
-      ? execFileAsync("apt-get", args, {
-          env: { ...process.env, DEBIAN_FRONTEND: "noninteractive" },
-        })
-      : execFileAsync("sudo", ["-n", "apt-get", ...args], {
-          env: { ...process.env, DEBIAN_FRONTEND: "noninteractive" },
-        });
 
   try {
-    await run(["update", "-y"]);
+    await runPrivileged(["apt-update"]);
   } catch (e) {
     return aptError("update", e);
   }
+
   try {
-    await run(["install", "-y", "mysql-server"]);
+    await runPrivileged(["apt-install", "mysql-server"]);
   } catch (e) {
     return aptError("install", e);
   }
-  // Best-effort start: systemd may not exist (containers/WSL).
-  try {
-    if (isRoot) {
-      await execFileAsync("systemctl", ["enable", "--now", "mysql"]);
-    } else {
-      await execFileAsync("sudo", ["-n", "systemctl", "enable", "--now", "mysql"]);
-    }
-  } catch {
+
+  // Best-effort start: systemd may not exist (containers/WSL). Enabling and
+  // starting are separate calls because the helper's allowlist has no --now.
+  for (const action of ["enable", "start"] as const) {
     try {
-      if (isRoot) {
-        await execFileAsync("service", ["mysql", "start"]);
-      } else {
-        await execFileAsync("sudo", ["-n", "service", "mysql", "start"]);
-      }
+      await runPrivileged(["service", action, "mysql"]);
     } catch {
       // Leave running-state to the operator; binary presence decides success.
     }

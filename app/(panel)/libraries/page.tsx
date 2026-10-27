@@ -24,6 +24,7 @@ import {
 } from "@/components/tailgrids/core/select";
 import { cn } from "@/utils/cn";
 import { toast } from "sonner";
+import { usePrivilegeGate } from "@/components/common/privilege-dialog";
 import type { LibraryDetail, LibraryStatus } from "@/agent/libraries";
 import { LIBRARIES, LIBRARY_CATEGORIES, type LibraryItem, type LibraryCategory } from "./_data";
 
@@ -158,6 +159,8 @@ export default function LibrariesPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
+  // Asks for the sudo password when apt answers "privilege-required".
+  const gate = usePrivilegeGate();
 
   const refreshStatuses = useCallback(async () => {
     try {
@@ -226,15 +229,14 @@ export default function LibrariesPage() {
     setIsBusy(true);
     setActionError(null);
     try {
-      const res = await fetch(`/api/libraries/${encodeURIComponent(selected.id)}`, {
+      const { res, json } = await gate.request<{
+        error?: string;
+        version?: string | null;
+      }>(`/api/libraries/${encodeURIComponent(selected.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(version ? { version } : {}),
       });
-      const json = (await res.json().catch(() => null)) as {
-        error?: string;
-        version?: string | null;
-      } | null;
       if (!res.ok) {
         setActionError(json?.error ?? `Failed to update library (${res.status}).`);
         return;
@@ -257,10 +259,10 @@ export default function LibrariesPage() {
     setIsBusy(true);
     setActionError(null);
     try {
-      const res = await fetch(`/api/libraries/${encodeURIComponent(selected.id)}`, {
-        method: "DELETE",
-      });
-      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      const { res, json } = await gate.request<{ error?: string }>(
+        `/api/libraries/${encodeURIComponent(selected.id)}`,
+        { method: "DELETE" },
+      );
       if (!res.ok) {
         setActionError(json?.error ?? `Failed to uninstall (${res.status}).`);
         return;
@@ -549,7 +551,8 @@ export default function LibrariesPage() {
                   )}
                   <p className='text-[11px] text-text-tertiary'>
                     Versions come from <span className='font-mono-tech'>apt-cache policy</span>.
-                    Switching releases uses apt, so it needs root or passwordless sudo.
+                    Switching releases uses apt through the panel&apos;s root helper; without
+                    it you&apos;ll be asked for the sudo password once.
                   </p>
                 </div>
               )}
@@ -633,6 +636,10 @@ export default function LibrariesPage() {
             </>
           )}
         </DialogFooter>
+
+        {/* sudo prompt — nested here so focus containment of this modal
+            doesn't fight the password dialog */}
+        {gate.dialog}
       </Dialog>
     </AppShell>
   );

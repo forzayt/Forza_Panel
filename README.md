@@ -58,6 +58,48 @@ exposing the panel to the internet.
   endpoints) require a valid session. Logout sits at the bottom of the
   sidebar and asks for confirmation.
 
+## Root access
+
+Some actions really are root-only: `apt-get` installs/removals, version
+switches, and service control (MySQL install in Databases, install/uninstall in
+Libraries, and anything added later). ForzaPanel never runs as root itself.
+Two options:
+
+**1. Privileged helper (recommended, no prompts).** `install.sh` runs this
+automatically; to (re)install manually:
+
+```bash
+sudo bash scripts/install-privileges.sh            # grants the invoking user
+sudo bash scripts/install-privileges.sh gameuser   # or name the panel user
+```
+
+This copies `scripts/forzapanel-priv` to `/usr/local/bin/forzapanel-priv`
+(root:root, `0755`) and writes `/etc/sudoers.d/forzapanel`:
+
+```
+gameuser ALL=(root) NOPASSWD: /usr/local/bin/forzapanel-priv
+```
+
+The helper accepts a fixed allowlist only — `apt-update`,
+`apt-install <pkg> [version]`, `apt-remove <pkg>`, and
+`service <start|stop|restart|enable|disable|status> <unit>` — with package and
+unit allowlists that mirror `agent/libraries.ts`. Anything else is rejected;
+sudo is granted for that one script, not for `apt-get` or a shell. Test it with
+`sudo -n /usr/local/bin/forzapanel-priv apt-update`.
+
+**2. One-time sudo password (no host changes).** When the helper is missing,
+the API answers `403 { "code": "privilege-required" }` and the panel opens a
+small password dialog. The password is checked with `sudo -S -k true`, kept in
+the panel's **memory only** for 15 minutes (keyed by the admin session), piped
+to `sudo -S` on demand, and never written to disk, logged, or returned by an
+API. It is cleared on logout, on process restart, and after the 15 minutes —
+then the dialog simply asks again. Because the password travels from the
+browser to the panel, only use this over HTTPS.
+
+`GET/POST/DELETE /api/admin/privileges` reports the current state, unlocks, and
+forgets the password. The dialog shows the helper command too, so an operator
+can switch to option 1 at any time.
+
 ## How it works
 
 ### Dashboard (`/`)
@@ -84,9 +126,12 @@ to **Installed first** (with name, name-desc and category options), plus
 search and category chips. Clicking a row
 opens a details modal with the detected version, the apt package behind it,
 and — on Linux — a version dropdown plus **Install / Change version** and
-**Uninstall** (with confirmation). Versioned installs go through
-`apt-get install pkg=version`, which needs root or passwordless sudo;
-`GET/POST/DELETE /api/libraries/<id>` backs the modal.
+**Uninstall** (with confirmation). Versioned installs go through the privileged
+helper (`apt-install <pkg> <version>`, which allows downgrades), so they work
+without a password once `scripts/install-privileges.sh` has run — otherwise the
+panel asks for the sudo password once per session (see
+[Root access](#root-access)). `GET/POST/DELETE /api/libraries/<id>` backs the
+modal.
 
 ### Changelog (`/changelog`)
 
@@ -118,8 +163,9 @@ MySQL card (clickable) for now. Creating a database makes
 `data/databases/<name>/` with a `database.json` inside — same
 folder-per-item layout as servers, listed straight from disk. Inside a
 database, **Install Database** mirrors the server import flow: a searchable
-option list, a confirm step, then `apt install mysql-server` on Linux
-(panel must be root or have passwordless sudo). The button hides once a
+option list, a confirm step, then `apt install mysql-server` on Linux through
+the privileged helper (or the one-time sudo prompt — see
+[Root access](#root-access)). The button hides once a
 MySQL binary is detected. A live MySQL connection, other engines, and user
 management arrive in a later phase.
 
@@ -216,6 +262,9 @@ server, and the list is read straight from disk.
 | DELETE | `/api/databases/[name]` | Remove database folder |
 | GET | `/api/databases/status` | MySQL installed? + version |
 | POST | `/api/databases/install` | apt install mysql-server (Linux) |
+| GET | `/api/admin/privileges` | Root-access status (helper / unlocked / expiry) |
+| POST | `/api/admin/privileges` | Verify sudo password, unlock for 15 min |
+| DELETE | `/api/admin/privileges` | Forget the unlocked password |
 
 ## Project structure
 
@@ -226,6 +275,8 @@ agent/               ALL machine-touching code lives here — nothing else
   servers.ts         Server folders, download/extract, start/stop, logs
   system.ts          OS metrics, disk probing, LAN IP
   templates.ts       Template library reader
+  privileges.ts      Root helper detection, sudo password unlock, runPrivileged
+scripts/             install.sh helpers (forzapanel-priv + sudoers installer)
 components/          Dashboard widgets + tailgrids design-system primitives
 template/game/       Importable game templates (tracked in git)
 data/servers/        One folder per server (runtime data, git-ignored)
@@ -247,6 +298,12 @@ API routes only call into it.
   ```
 - **`next start` says "Could not find a production build"** — run
   `npm run build` first; `start` only serves an existing build.
+
+- **"Root access required" when installing a library or MySQL** — the panel
+  needs root for apt. Run `sudo bash scripts/install-privileges.sh` once
+  (no more prompts), or type the sudo password into the dialog; it is held in
+  memory for 15 minutes and then forgotten. See
+  [Root access](#root-access).
 
 - **Import 500s** — the toast now shows the real reason. Common cause was
   `tar` warnings on partial archives; exit code 1 is tolerated, 2+ fails.

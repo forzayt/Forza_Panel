@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
 import InstallLoader from "@/components/InstallLoader";
+import { usePrivilegeGate } from "@/components/common/privilege-dialog";
 import { toast } from "sonner";
 import type { DatabaseRecord } from "@/agent/databases";
 import type { MysqlStatus } from "@/agent/mysql";
@@ -53,6 +54,8 @@ export default function DatabaseDetailPage() {
   const [installQuery, setInstallQuery] = useState("");
   const [isInstalling, setIsInstalling] = useState(false);
   const [dbTemplates, setDbTemplates] = useState<DatabaseTemplateSummary[] | null>(null);
+  // Prompts for the sudo password when apt needs root.
+  const gate = usePrivilegeGate();
 
   const fetchDatabase = useCallback(async () => {
     try {
@@ -130,15 +133,14 @@ export default function DatabaseDetailPage() {
   const handleInstall = async (templateId: string) => {
     setIsInstalling(true);
     try {
-      const res = await fetch("/api/databases/install", {
+      const { res, json } = await gate.request<{
+        error?: string;
+        version?: string | null;
+      }>("/api/databases/install", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ templateId }),
       });
-      const json = (await res.json().catch(() => null)) as {
-        error?: string;
-        version?: string | null;
-      } | null;
       if (!res.ok) {
         toast.error(json?.error ?? `Install failed (${res.status}).`);
         setIsInstalling(false);
@@ -446,6 +448,10 @@ export default function DatabaseDetailPage() {
                 Cancel
               </Button>
             </DialogFooter>
+
+            {/* sudo prompt — nested so this modal's focus containment
+                doesn't fight the password dialog */}
+            {gate.dialog}
           </>
         )}
       </Dialog>

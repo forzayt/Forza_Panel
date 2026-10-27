@@ -26,5 +26,14 @@ else
 fi
 
 cd "$APP_DIR"
+
+# Root helper: lets the panel run apt/service actions through a small
+# allowlisted script (see scripts/forzapanel-priv) instead of keeping a
+# password. If this fails the panel falls back to asking for the sudo
+# password once per session, so a failure is a warning, not fatal.
+if ! sudo bash scripts/install-privileges.sh "${SUDO_USER:-$(id -un)}"; then
+  echo "warning: could not install the privilege helper — the panel will ask for the sudo password instead." >&2
+fi
+
 npm i
 npm run dev

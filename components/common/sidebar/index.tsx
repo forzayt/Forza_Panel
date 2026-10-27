@@ -60,6 +60,9 @@ export default function Sidebar({
         if (isLoggingOut) return;
         setIsLoggingOut(true);
         try {
+            // Forget any sudo password held in server memory for this session
+            // while the cookie is still valid (the key is derived from it).
+            await fetch('/api/admin/privileges', { method: 'DELETE' });
             await fetch('/api/admin/logout', { method: 'POST' });
         } catch {
             // Even if the request fails, drop the user back on the login page.
