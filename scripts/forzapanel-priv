@@ -54,6 +54,16 @@ require_root() {
   [ "$(id -u)" -eq 0 ] || die "must run as root (use sudo)"
 }
 
+# apt/dpkg block-buffer stdout when it is a pipe, so the panel's live terminal
+# went silent until the command finished. stdbuf (coreutils) puts them back on
+# line buffering so each line reaches the browser as it happens.
+apt_get() {
+  if command -v stdbuf >/dev/null 2>&1; then
+    exec stdbuf -oL -eL apt-get "$@"
+  fi
+  exec apt-get "$@"
+}
+
 cmd="${1:-}"
 [ -n "$cmd" ] || usage
 shift
@@ -61,7 +71,7 @@ shift
 case "$cmd" in
   apt-update)
     require_root
-    exec apt-get update -y
+    apt_get update -y
     ;;
 
   apt-install)
@@ -74,9 +84,9 @@ case "$cmd" in
     if [ -n "$version" ]; then
       # apt version strings: digits, letters, . : + ~ - and underscore.
       [[ "$version" =~ ^[A-Za-z0-9.+:~_-]+$ ]] || die "invalid version: $version"
-      exec apt-get install -y --allow-downgrades "${pkg}=${version}"
+      apt_get install -y --allow-downgrades "${pkg}=${version}"
     fi
-    exec apt-get install -y "$pkg"
+    apt_get install -y "$pkg"
     ;;
 
   apt-remove)
@@ -84,7 +94,7 @@ case "$cmd" in
     pkg="${1:-}"
     [ -n "$pkg" ] || usage
     is_allowed "$pkg" "$APT_PACKAGES" || die "package not allowed: $pkg"
-    exec apt-get remove -y "$pkg"
+    apt_get remove -y "$pkg"
     ;;
 
   service)

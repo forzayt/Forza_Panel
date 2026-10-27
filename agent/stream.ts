@@ -2,6 +2,7 @@ import { describePrivilegeError } from "./privileges";
 
 export type StreamEvent =
   | { type: "log"; line: string }
+  | { type: "ping" }
   | {
       type: "done";
       ok: boolean;
@@ -43,6 +44,11 @@ export function streamJob(
         }
       };
 
+      // Keep the pipe warm: some proxies/terminals hold a response until the
+      // buffer fills, and apt can be quiet for a while. A tiny ping every 10s
+      // proves the job is still alive (the UI ignores unknown event types).
+      const heartbeat = setInterval(() => send({ type: "ping" }), 10_000);
+
       try {
         const outcome = await run((line) => send({ type: "log", line }));
         send({ type: "done", ...outcome });
@@ -57,6 +63,7 @@ export function streamJob(
           code: privilege?.code,
         });
       } finally {
+        clearInterval(heartbeat);
         if (!closed) {
           try {
             controller.close();

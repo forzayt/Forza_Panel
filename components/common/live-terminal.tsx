@@ -17,6 +17,8 @@ interface TerminalState {
   subtitle: string;
   lines: string[];
   status: TerminalStatus;
+  /** True until the server accepts the job (request still in flight). */
+  connecting: boolean;
 }
 
 export interface TerminalRequest {
@@ -47,6 +49,8 @@ export interface LiveTerminal {
 }
 
 const LINE_DELAY_MS = 100;
+// apt can be chatty; keep the tail so a long install can't grow without bound.
+const MAX_LINES = 3000;
 
 function lineClass(line: string) {
   if (line.startsWith("✓")) return "text-emerald-400";
@@ -77,9 +81,14 @@ export function useLiveTerminal(): LiveTerminal {
     const batch = pending.current;
     pending.current = [];
     if (batch.length === 0) return;
-    setState((current) =>
-      current ? { ...current, lines: [...current.lines, ...batch] } : current,
-    );
+    setState((current) => {
+      if (!current) return current;
+      const lines = [...current.lines, ...batch];
+      return {
+        ...current,
+        lines: lines.length > MAX_LINES ? lines.slice(lines.length - MAX_LINES) : lines,
+      };
+    });
   }, []);
 
   const push = useCallback(
@@ -117,11 +126,27 @@ export function useLiveTerminal(): LiveTerminal {
       let res: Response;
       let json: { error?: string; code?: string } | null | undefined;
 
-      // Ask for the sudo password *before* opening the terminal, so the two
-      // modals never stack on top of each other.
+      // Open the terminal *before* talking to the server. Waiting for the
+      // response meant the modal only appeared when the first bytes arrived
+      // (often at the very end on buffered/proxied setups). The request still
+      // runs afterwards; the password prompt renders above this modal.
+      if (flushTimer.current !== null) {
+        window.clearTimeout(flushTimer.current);
+        flushTimer.current = null;
+      }
+      pending.current = [];
+      setState({
+        title,
+        subtitle: subtitle ?? "Live output",
+        lines: [],
+        status: "running",
+        connecting: true,
+      });
+
       try {
         ({ res, json } = await request());
       } catch (err) {
+        setState(null);
         onFinish?.();
         return {
           ok: false,
@@ -131,24 +156,27 @@ export function useLiveTerminal(): LiveTerminal {
       }
 
       if (!res.ok || !res.body) {
+        // Nothing streamed — close the terminal and let the page show the
+        // error inline (bad request, …). A 403 means the operator dismissed
+        // the sudo prompt: stay quiet, they chose to cancel.
+        setState(null);
         onFinish?.();
+        const cancelled =
+          res.status === 403 && json?.code === "privilege-required";
         return {
           ok: false,
           opened: false,
-          error: json?.error ?? `Request failed (${res.status}).`,
+          error: cancelled
+            ? undefined
+            : (json?.error ?? `Request failed (${res.status}).`),
         };
       }
-
-      setState({
-        title,
-        subtitle: subtitle ?? "Live output",
-        lines: [],
-        status: "running",
-      });
 
       let ok = false;
       let failure: string | undefined;
       let terminalError: string | undefined;
+
+      setState((current) => (current ? { ...current, connecting: false } : current));
 
       try {
         const reader = res.body.getReader();
@@ -285,7 +313,7 @@ export function useLiveTerminal(): LiveTerminal {
           </div>
           <p className="text-xs text-text-tertiary">
             {state.status === "running"
-              ? `${state.subtitle} · running…`
+              ? `${state.subtitle} · ${state.connecting ? "starting…" : "running…"}`
               : state.status === "success"
                 ? `${state.subtitle} · finished`
                 : `${state.subtitle} · failed`}
@@ -300,7 +328,9 @@ export function useLiveTerminal(): LiveTerminal {
             className="h-60 overflow-y-auto rounded-lg border border-card-border bg-[#0b1220] px-3 py-2 font-mono-tech text-[11px] leading-5"
           >
             {state.lines.length === 0 ? (
-              <span className="text-slate-500">Starting…</span>
+              <span className="text-slate-500">
+                {state.connecting ? "Starting…" : "Waiting for output…"}
+              </span>
             ) : (
               state.lines.map((line, index) => (
                 <div key={index} className={lineClass(line)}>

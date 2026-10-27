@@ -224,16 +224,17 @@ function PrivilegePrompt({
 
   return (
     <>
-      {/* Backdrop: blocks clicks/typing on the page and the dialog behind, so
-          focus can never land in (for example) the library search box while a
-          password is being entered. RAC's bare Modal has no underlay. */}
+      {/* Backdrop: blocks clicks/typing on the page (and on the live-terminal
+          modal behind, which opens before the request) so focus can never land
+          in, say, the library search box while a password is being typed.
+          RAC's bare Modal has no underlay. Sits above the terminal's z-60. */}
       <div
         aria-hidden="true"
         onClick={(e) => {
           e.stopPropagation();
           onResolved(false);
         }}
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm"
       />
 
       <Dialog
@@ -242,7 +243,7 @@ function PrivilegePrompt({
           if (!open) onResolved(false);
         }}
         aria-label="Unlock root access"
-        className="z-[60] max-w-md"
+        className="z-[80] max-w-md"
       >
       <div
         // Keep keystrokes inside this dialog: nothing else on the page (search

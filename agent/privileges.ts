@@ -165,9 +165,11 @@ function spawnCapture(
     const emit = (chunk: string) => {
       if (!options.onLine) return;
       pending += chunk;
+      // Emit on \n *and* \r: apt/dpkg rewrite progress lines with carriage
+      // returns, and deferring those would dump a giant blob at the end.
       let index: number;
-      while ((index = pending.indexOf("\n")) >= 0) {
-        const line = pending.slice(0, index).replace(/\r$/, "");
+      while ((index = pending.search(/[\r\n]/)) >= 0) {
+        const line = pending.slice(0, index);
         pending = pending.slice(index + 1);
         if (line.trim().length > 0) options.onLine(line);
       }

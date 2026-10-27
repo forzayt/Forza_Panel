@@ -257,8 +257,8 @@ export default function LibrariesPage() {
         onFinish: () => setIsBusy(false),
       });
 
-      // The job never started (sudo prompt cancelled, bad request, …) — no
-      // terminal to show, so report it inline.
+      // The job never streamed (bad request, …) — the terminal closed itself,
+      // so report the reason inline instead.
       if (!result.ok && result.error && !result.opened) setActionError(result.error);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Failed to update library.");

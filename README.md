@@ -66,7 +66,8 @@ Libraries, and anything added later). ForzaPanel never runs as root itself.
 Two options:
 
 **1. Privileged helper (recommended, no prompts).** `install.sh` runs this
-automatically; to (re)install manually:
+automatically; to (re)install manually — also do this after updating, e.g. to
+pick up the `stdbuf` fix that keeps apt output streaming live:
 
 ```bash
 sudo bash scripts/install-privileges.sh            # grants the invoking user
@@ -133,12 +134,14 @@ panel asks for the sudo password once per session (see
 [Root access](#root-access)). `GET/POST/DELETE /api/libraries/<id>` backs the
 modal.
 
-Install and uninstall **stream their output** into a small terminal modal
-instead of a spinner: the route answers with NDJSON (`{"type":"log","line":…}`
-per line, then one `done` event), so apt's own progress, warnings and errors
-scroll by live. The modal stays open when the job ends — green dot for success,
-red for failure with the last error line — and the list/detail refresh as soon
-as the `done` event arrives.
+Install and uninstall **stream their output** into a small terminal modal that
+opens the moment you click — before the request is even sent — so you always
+see what the panel is doing: the route answers with NDJSON
+(`{"type":"log","line":…}` per line, then one `done` event), and apt's own
+progress, warnings and errors scroll by live. The modal stays open when the job
+ends — green dot for success, red for failure with the last error line — and
+the list/detail refresh as soon as the `done` event arrives. If root access
+still needs a password, the sudo prompt appears on top of the terminal.
 
 ### Changelog (`/changelog`)
 
@@ -327,6 +330,12 @@ API routes only call into it.
 - **Empty console** — the process died instantly; Start now reports the
   exit code + log tail instead of pretending. Status badges also
   self-correct every 5 seconds.
+- **Install terminal opens but stays on "Waiting for output…" until the end**
+  — apt/dpkg block-buffer their output when stdout is a pipe. The helper now
+  runs them through `stdbuf`; re-install it once so the change lands:
+  `sudo bash scripts/install-privileges.sh`. A reverse proxy in front of the
+  panel can buffer too — keep `X-Accel-Buffering: no` (sent by the panel) and
+  disable `proxy_buffering` for the streaming routes in nginx.
 - **`next build` fails with `/_not-found` or missing chunks** — stop the
   dev server first; dev and build share `.next/` and corrupt each other.
   Delete `.next/` and rebuild clean.
