@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import AppShell from "@/components/common/app-shell";
 import { Badge } from "@/components/tailgrids/core/badge";
+import { Button } from "@/components/tailgrids/core/button";
 import { Card } from "@/components/tailgrids/core/card";
+import {
+  Dialog,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
+import { Label } from "@/components/tailgrids/core/label";
 import { cn } from "@/utils/cn";
-import type { LibraryStatus } from "@/agent/libraries";
+import { toast } from "sonner";
+import type { LibraryDetail, LibraryStatus } from "@/agent/libraries";
 import { LIBRARIES, LIBRARY_CATEGORIES, type LibraryItem, type LibraryCategory } from "./_data";
 
 function categoryColor(category: LibraryCategory) {
@@ -14,6 +24,15 @@ function categoryColor(category: LibraryCategory) {
   if (category === "Runtime") return "sky" as const;
   return "warning" as const;
 }
+
+type LibrarySort = "installed" | "name" | "name-desc" | "category";
+
+const SORT_OPTIONS: { value: LibrarySort; label: string }[] = [
+  { value: "installed", label: "Installed first" },
+  { value: "name", label: "Name (A–Z)" },
+  { value: "name-desc", label: "Name (Z–A)" },
+  { value: "category", label: "Category" },
+];
 
 function StatusLabel({
   status,
@@ -54,77 +73,240 @@ function LibraryRow({
   item,
   status,
   failed,
+  onOpen,
 }: {
   item: LibraryItem;
   status: LibraryStatus | null | undefined;
   failed: boolean;
+  onOpen: () => void;
 }) {
   return (
-    <Card className="flex items-center gap-4 py-3.5 transition-colors hover:border-button-primary-outline-stroke">
-      <span
-        className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono-tech text-[11px] font-bold",
-          item.accent,
-        )}
-      >
-        {item.icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-text-primary">{item.name}</p>
-        <p className="truncate text-xs leading-5 text-text-tertiary">{item.description}</p>
-      </div>
-      <StatusLabel status={status} failed={failed} />
-      <Badge color={categoryColor(item.category)} size="sm" className="hidden shrink-0 sm:inline-flex">
-        {item.category}
-      </Badge>
-    </Card>
+    <div
+      role='button'
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      aria-label={`${item.name} details`}
+      className='w-full cursor-pointer rounded-xl text-left outline-none focus-visible:ring-4 focus-visible:ring-input-primary-focus-border/20'
+    >
+      <Card className="flex items-center gap-4 py-3.5 transition-colors hover:border-button-primary-outline-stroke">
+        <span
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono-tech text-[11px] font-bold",
+            item.accent,
+          )}
+        >
+          {item.icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-text-primary">{item.name}</p>
+          <p className="truncate text-xs leading-5 text-text-tertiary">{item.description}</p>
+        </div>
+        <StatusLabel status={status} failed={failed} />
+        <Badge color={categoryColor(item.category)} size="sm" className="hidden shrink-0 sm:inline-flex">
+          {item.category}
+        </Badge>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          className="size-4 shrink-0 text-text-tertiary"
+          aria-hidden="true"
+        >
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+      </Card>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2">
+      <span className="text-xs text-text-tertiary">{label}</span>
+      <span className="min-w-0 text-right text-xs font-medium text-text-primary">{value}</span>
+    </div>
   );
 }
 
 export default function LibrariesPage() {
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<LibraryCategory | "all">("all");
+  const [sort, setSort] = useState<LibrarySort>("installed");
   const [statuses, setStatuses] = useState<Record<string, LibraryStatus> | null>(null);
   const [statusError, setStatusError] = useState(false);
 
+  const [selected, setSelected] = useState<LibraryItem | null>(null);
+  const [detail, setDetail] = useState<LibraryDetail | null>(null);
+  const [detailError, setDetailError] = useState(false);
+  const [version, setVersion] = useState("");
+  const [isBusy, setIsBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmUninstall, setConfirmUninstall] = useState(false);
+
+  const refreshStatuses = useCallback(async () => {
+    try {
+      const res = await fetch("/api/libraries", { cache: "no-store" });
+      if (!res.ok) throw new Error(`API responded ${res.status}`);
+      const json = (await res.json()) as { items: LibraryStatus[] };
+      setStatuses(
+        Object.fromEntries(json.items.map((item): [string, LibraryStatus] => [item.id, item])),
+      );
+      setStatusError(false);
+    } catch {
+      setStatusError(true);
+    }
+  }, []);
+
   useEffect(() => {
+    refreshStatuses();
+  }, [refreshStatuses]);
+
+  // Load the details (package, versions) whenever a row is opened.
+  useEffect(() => {
+    if (!selected) return;
     let cancelled = false;
-    fetch("/api/libraries", { cache: "no-store" })
+
+    setDetail(null);
+    setDetailError(false);
+    setActionError(null);
+    setConfirmUninstall(false);
+    setVersion("");
+
+    fetch(`/api/libraries/${encodeURIComponent(selected.id)}`, { cache: "no-store" })
       .then((res) => {
         if (!res.ok) throw new Error(`API responded ${res.status}`);
-        return res.json() as Promise<{ items: LibraryStatus[] }>;
+        return res.json() as Promise<LibraryDetail>;
       })
       .then((json) => {
         if (cancelled) return;
-        setStatuses(
-          Object.fromEntries(
-            json.items.map((item): [string, LibraryStatus] => [item.id, item]),
-          ),
-        );
-        setStatusError(false);
+        setDetail(json);
+        setVersion(json.installedPackageVersion ?? json.versions[0] ?? "");
       })
       .catch(() => {
-        if (!cancelled) setStatusError(true);
+        if (!cancelled) setDetailError(true);
       });
+
     return () => {
       cancelled = true;
     };
+  }, [selected]);
+
+  const reloadDetail = useCallback(async (item: LibraryItem) => {
+    try {
+      const res = await fetch(`/api/libraries/${encodeURIComponent(item.id)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as LibraryDetail;
+      setDetail(json);
+      setVersion(json.installedPackageVersion ?? json.versions[0] ?? "");
+    } catch {
+      // Keep the previous detail; the toast already reported the outcome.
+    }
   }, []);
+
+  const handleInstall = async () => {
+    if (!selected || !detail) return;
+    setIsBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/libraries/${encodeURIComponent(selected.id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(version ? { version } : {}),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        version?: string | null;
+      } | null;
+      if (!res.ok) {
+        setActionError(json?.error ?? `Failed to update library (${res.status}).`);
+        return;
+      }
+      toast.success(
+        `${selected.name} ${detail.installed ? "updated" : "installed"}${
+          json?.version ? ` — ${json.version}` : ""
+        }.`,
+      );
+      await Promise.all([reloadDetail(selected), refreshStatuses()]);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to update library.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleUninstall = async () => {
+    if (!selected) return;
+    setIsBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/libraries/${encodeURIComponent(selected.id)}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setActionError(json?.error ?? `Failed to uninstall (${res.status}).`);
+        return;
+      }
+      toast.success(`${selected.name} uninstalled.`);
+      setConfirmUninstall(false);
+      await Promise.all([reloadDetail(selected), refreshStatuses()]);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to uninstall.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return LIBRARIES.filter((item) => {
+    const filtered = LIBRARIES.filter((item) => {
       const inCategory = activeCategory === "all" || item.category === activeCategory;
       const matches =
         !q ||
         [item.name, item.description, item.category].join(" ").toLowerCase().includes(q);
       return inCategory && matches;
     });
-  }, [query, activeCategory]);
+
+    const list = [...filtered];
+    if (sort === "installed") {
+      // Installed first, then unknown (still probing), then not installed.
+      const rank = (item: LibraryItem) => {
+        const status = statuses?.[item.id];
+        if (!status) return 1;
+        return status.installed ? 0 : 2;
+      };
+      list.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+    } else if (sort === "name") {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === "name-desc") {
+      list.sort((a, b) => b.name.localeCompare(a.name));
+    } else {
+      list.sort(
+        (a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name),
+      );
+    }
+    return list;
+  }, [query, activeCategory, sort, statuses]);
 
   const installedCount = statuses
     ? LIBRARIES.filter((item) => statuses[item.id]?.installed).length
     : null;
+
+  const versionUnchanged =
+    !!detail?.installed &&
+    !!detail.installedPackageVersion &&
+    version === detail.installedPackageVersion;
+  const canSubmit = !!detail?.canManage && !isBusy && !versionUnchanged;
 
   return (
     <AppShell>
@@ -186,6 +368,26 @@ export default function LibrariesPage() {
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <label
+              htmlFor="library-sort"
+              className="shrink-0 text-xs font-medium text-text-tertiary"
+            >
+              Sort
+            </label>
+            <select
+              id="library-sort"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as LibrarySort)}
+              className="rounded-lg border border-card-border bg-input-background px-3 py-1.5 text-sm text-text-primary outline-none focus:border-input-primary-focus-border focus:ring-4 focus:ring-input-primary-focus-border/20"
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {visible.length === 0 && (
@@ -204,6 +406,7 @@ export default function LibrariesPage() {
                 item={item}
                 status={statuses?.[item.id]}
                 failed={statusError}
+                onOpen={() => setSelected(item)}
               />
             ))}
           </div>
@@ -223,6 +426,173 @@ export default function LibrariesPage() {
           </p>
         )}
       </div>
+
+      <Dialog
+        isOpen={selected !== null}
+        onOpenChange={(open) => {
+          if (!open && !isBusy) setSelected(null);
+        }}
+        aria-label='Library details'
+        className='max-h-[90vh] max-w-md overflow-y-auto'
+      >
+        <DialogHeader>
+          <DialogTitle>{selected?.name ?? "Library"}</DialogTitle>
+        </DialogHeader>
+
+        <DialogBody>
+          {selected && (
+            <div className='space-y-4'>
+              <div className='flex items-center gap-2'>
+                <Badge color={categoryColor(selected.category)} size='sm'>
+                  {selected.category}
+                </Badge>
+                <StatusLabel status={detail ?? statuses?.[selected.id]} failed={detailError} />
+              </div>
+
+              <p className='text-sm leading-5 text-text-secondary'>{selected.description}</p>
+
+              <div className='divide-y divide-card-border rounded-lg border border-card-border px-3'>
+                <DetailRow
+                  label='Installed version'
+                  value={detail?.version ?? (detail?.installed === false ? "Not installed" : "—")}
+                />
+                <DetailRow
+                  label='Package'
+                  value={
+                    detail?.package ? (
+                      <span className='font-mono-tech'>{detail.package}</span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+                {detail?.installedPackageVersion && (
+                  <DetailRow
+                    label='apt build'
+                    value={
+                      <span className='font-mono-tech'>{detail.installedPackageVersion}</span>
+                    }
+                  />
+                )}
+                <DetailRow
+                  label='Platform'
+                  value={<span className='font-mono-tech'>{detail?.platform ?? "—"}</span>}
+                />
+              </div>
+
+              {detailError && (
+                <p className='text-sm text-button-error-outline-text'>
+                  Could not load details for this stack.
+                </p>
+              )}
+
+              {detail && !detailError && detail.canManage && (
+                <div className='space-y-2'>
+                  <Label htmlFor='library-version'>Install version</Label>
+                  <select
+                    id='library-version'
+                    value={version}
+                    onChange={(e) => setVersion(e.target.value)}
+                    disabled={isBusy || detail.versions.length === 0}
+                    className='w-full rounded-lg border border-card-border bg-input-background px-4 py-2.5 text-sm text-text-primary outline-none focus:border-input-primary-focus-border focus:ring-4 focus:ring-input-primary-focus-border/20 disabled:cursor-not-allowed disabled:opacity-60'
+                  >
+                    {detail.versions.length === 0 && (
+                      <option value=''>No versions found — installs the default</option>
+                    )}
+                    {detail.versions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                        {option === detail.installedPackageVersion ? " (installed)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className='text-[11px] text-text-tertiary'>
+                    Versions come from <span className='font-mono-tech'>apt-cache policy</span>.
+                    Switching releases uses apt, so it needs root or passwordless sudo.
+                  </p>
+                </div>
+              )}
+
+              {detail && !detailError && !detail.canManage && (
+                <p className='text-xs leading-5 text-text-tertiary'>
+                  Install, uninstall and version changes are available on Linux hosts with apt.
+                  This panel runs on <span className='font-mono-tech'>{detail.platform}</span>.
+                </p>
+              )}
+
+              {actionError && (
+                <p className='text-sm text-button-error-outline-text'>{actionError}</p>
+              )}
+
+              {confirmUninstall && (
+                <p className='rounded-lg border border-button-error-outline-stroke/40 bg-button-error-background/10 px-3 py-2 text-xs leading-5 text-button-error-outline-text'>
+                  Uninstall {selected.name}? Its apt package will be removed from this host.
+                </p>
+              )}
+            </div>
+          )}
+        </DialogBody>
+
+        <DialogFooter>
+          {confirmUninstall ? (
+            <>
+              <Button
+                variant='primary'
+                appearance='outline'
+                onPress={() => setConfirmUninstall(false)}
+                isDisabled={isBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='danger'
+                appearance='fill'
+                onPress={handleUninstall}
+                isDisabled={isBusy}
+              >
+                {isBusy ? "Uninstalling…" : "Uninstall now"}
+              </Button>
+            </>
+          ) : (
+            <>
+              {detail?.installed && detail.canManage && (
+                <Button
+                  variant='danger'
+                  appearance='outline'
+                  onPress={() => setConfirmUninstall(true)}
+                  isDisabled={isBusy}
+                >
+                  Uninstall
+                </Button>
+              )}
+              <Button
+                variant='primary'
+                appearance='outline'
+                onPress={() => setSelected(null)}
+                isDisabled={isBusy}
+              >
+                Close
+              </Button>
+              {detail?.canManage && (
+                <Button
+                  variant='primary'
+                  appearance='fill'
+                  onPress={handleInstall}
+                  isDisabled={!canSubmit}
+                >
+                  {isBusy
+                    ? "Working…"
+                    : detail.installed
+                      ? versionUnchanged
+                        ? "Installed"
+                        : "Change version"
+                      : "Install"}
+                </Button>
+              )}
+            </>
+          )}
+        </DialogFooter>
+      </Dialog>
     </AppShell>
   );
 }

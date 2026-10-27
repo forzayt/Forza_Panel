@@ -76,6 +76,18 @@ databases. Cards can be searched; deleting one removes the whole folder after
 a confirmation dialog. Backed by `GET/POST /api/projects` and
 `GET/DELETE /api/projects/<name>`.
 
+### Libraries (`/libraries`)
+
+Installed-or-not detection for languages, runtimes and databases on the host
+(`GET /api/libraries`, each stack probed with `--version`). The list defaults
+to **Installed first** (with name, name-desc and category options), plus
+search and category chips. Clicking a row
+opens a details modal with the detected version, the apt package behind it,
+and — on Linux — a version dropdown plus **Install / Change version** and
+**Uninstall** (with confirmation). Versioned installs go through
+`apt-get install pkg=version`, which needs root or passwordless sudo;
+`GET/POST/DELETE /api/libraries/<id>` backs the modal.
+
 ### Processes (`/system/processes`)
 
 Task-Manager-style live process list, polling `GET /api/processes`

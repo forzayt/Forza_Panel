@@ -79,3 +79,201 @@ export async function getLibrariesStatus(): Promise<LibrariesStatus> {
     items,
   };
 }
+
+/** Detects a single stack by id (null when the id is unknown). */
+export async function getLibraryStatus(id: string): Promise<LibraryStatus | null> {
+  const spec = PROBES.find((entry) => entry.id === id);
+  if (!spec) return null;
+  return probe(spec);
+}
+
+// ---------------------------------------------------------------------------
+// Management (Linux + apt): version listing, install/change version, uninstall
+// ---------------------------------------------------------------------------
+
+/** apt package backing each stack id. Linux hosts only. */
+const APT_PACKAGES: Record<string, string> = {
+  node: "nodejs",
+  python: "python3",
+  java: "default-jdk",
+  php: "php-cli",
+  go: "golang-go",
+  rust: "rustc",
+  ruby: "ruby-full",
+  dotnet: "dotnet-sdk-8.0",
+  mysql: "mysql-server",
+  mariadb: "mariadb-server",
+  postgresql: "postgresql",
+  mongodb: "mongodb-org",
+  redis: "redis-server",
+  sqlite: "sqlite3",
+};
+
+export interface LibraryDetail extends LibraryStatus {
+  platform: string;
+  /** apt package name, or null when the panel can't manage this stack. */
+  package: string | null;
+  /** True when install / uninstall / version switch is available here. */
+  canManage: boolean;
+  /** The apt build currently on disk (may differ in format from `version`). */
+  installedPackageVersion: string | null;
+  /** Versions apt can install, newest/candidate first. */
+  versions: string[];
+}
+
+function aptError(step: string, err: unknown): { error: string; status: number } {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/password is required|no tty present|sudo/i.test(msg)) {
+    return {
+      error:
+        "apt needs privileges: run the panel as root or grant passwordless sudo, then retry.",
+      status: 500,
+    };
+  }
+  const tail = msg.trim().split("\n").filter(Boolean).slice(-3).join(" ");
+  return { error: `apt ${step} failed: ${tail.slice(0, 250)}`, status: 500 };
+}
+
+function aptRunner() {
+  const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+  const env = { ...process.env, DEBIAN_FRONTEND: "noninteractive" };
+  return (args: string[]) =>
+    isRoot
+      ? execFileAsync("apt-get", args, { env, timeout: 600_000, maxBuffer: 8 * 1024 * 1024 })
+      : execFileAsync("sudo", ["-n", "apt-get", ...args], {
+          env,
+          timeout: 600_000,
+          maxBuffer: 8 * 1024 * 1024,
+        });
+}
+
+/** Reads installed + installable versions from `apt-cache policy <pkg>`. */
+async function readAptPolicy(
+  pkg: string
+): Promise<{ installed: string | null; versions: string[] }> {
+  let stdout: string;
+  try {
+    const result = await execFileAsync("apt-cache", ["policy", pkg], {
+      timeout: 15_000,
+      maxBuffer: 1024 * 1024,
+    });
+    stdout = result.stdout;
+  } catch {
+    return { installed: null, versions: [] };
+  }
+
+  const installedRaw = stdout.match(/^\s*Installed:\s*(\S+)/m)?.[1];
+  const installed = installedRaw && installedRaw !== "(none)" ? installedRaw : null;
+
+  const versions: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: string | undefined) => {
+    if (!value || value === "(none)" || seen.has(value)) return;
+    seen.add(value);
+    versions.push(value);
+  };
+
+  push(installed ?? undefined);
+  push(stdout.match(/^\s*Candidate:\s*(\S+)/m)?.[1]);
+  for (const match of stdout.matchAll(/^\s*\*{0,3}\s*([^\s*]+)\s+\d+\s*$/gm)) {
+    push(match[1]);
+  }
+  return { installed, versions: versions.slice(0, 20) };
+}
+
+/** Status + everything the details modal needs to render its controls. */
+export async function getLibraryDetail(id: string): Promise<LibraryDetail | null> {
+  const status = await getLibraryStatus(id);
+  if (!status) return null;
+
+  const pkg = APT_PACKAGES[id] ?? null;
+  const canManage = process.platform === "linux" && pkg !== null;
+  const policy =
+    canManage && pkg ? await readAptPolicy(pkg) : { installed: null, versions: [] };
+
+  return {
+    ...status,
+    platform: os.platform(),
+    package: pkg,
+    canManage,
+    installedPackageVersion: policy.installed,
+    versions: policy.versions,
+  };
+}
+
+/**
+ * Installs a stack — or switches it to a specific apt version — via apt-get.
+ * Runs as root when the panel is root, otherwise through non-interactive sudo.
+ */
+export async function installLibrary(
+  id: string,
+  version?: string
+): Promise<{ ok: true; version: string | null } | { error: string; status: number }> {
+  const pkg = APT_PACKAGES[id];
+  if (!pkg) {
+    return { error: `"${id}" cannot be managed from the panel.`, status: 400 };
+  }
+  if (process.platform !== "linux") {
+    return {
+      error: `Library installs target Linux — this panel runs on ${process.platform}.`,
+      status: 400,
+    };
+  }
+
+  const run = aptRunner();
+  try {
+    await run(["update", "-y"]);
+  } catch (e) {
+    return aptError("update", e);
+  }
+
+  // `pkg=version` pins an exact build; --allow-downgrades lets the dropdown
+  // move a stack back to an older release instead of failing.
+  const target = version?.trim() ? `${pkg}=${version.trim()}` : pkg;
+  try {
+    await run(["install", "-y", "--allow-downgrades", target]);
+  } catch (e) {
+    return aptError("install", e);
+  }
+
+  const status = await getLibraryStatus(id);
+  if (!status?.installed) {
+    return {
+      error: "Install finished but no binary for this stack was found on PATH.",
+      status: 500,
+    };
+  }
+  return { ok: true, version: status.version };
+}
+
+/** Removes a stack's apt package (config files are kept). */
+export async function uninstallLibrary(
+  id: string
+): Promise<{ ok: true } | { error: string; status: number }> {
+  const pkg = APT_PACKAGES[id];
+  if (!pkg) {
+    return { error: `"${id}" cannot be managed from the panel.`, status: 400 };
+  }
+  if (process.platform !== "linux") {
+    return {
+      error: `Library removal targets Linux — this panel runs on ${process.platform}.`,
+      status: 400,
+    };
+  }
+
+  const run = aptRunner();
+  try {
+    await run(["remove", "-y", pkg]);
+  } catch (e) {
+    return aptError("remove", e);
+  }
+
+  const status = await getLibraryStatus(id);
+  if (status?.installed) {
+    return {
+      error: `Removed ${pkg}, but "${id}" is still on PATH — it may be installed another way.`,
+      status: 500,
+    };
+  }
+  return { ok: true };
+}
