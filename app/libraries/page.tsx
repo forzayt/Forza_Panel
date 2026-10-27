@@ -6,132 +6,54 @@ import { Badge } from "@/components/tailgrids/core/badge";
 import { Card } from "@/components/tailgrids/core/card";
 import { Input } from "@/components/tailgrids/core/input";
 import { cn } from "@/utils/cn";
-import { toast } from "sonner";
-import {
-  LIBRARY_GROUPS,
-  TOTAL_LIBRARIES,
-  type LibraryGroup,
-  type LibraryItem,
-} from "./_data";
+import { LIBRARIES, LIBRARY_CATEGORIES, type LibraryItem, type LibraryCategory } from "./_data";
 
-function CopyCommand({ command, name }: { command: string; name: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopied(true);
-      toast.success(`Copied install command for ${name}`);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      toast.error("Could not copy to clipboard.");
-    }
-  };
-
-  return (
-    <div className="mt-2 flex items-center gap-2">
-      <code className="min-w-0 flex-1 truncate rounded-lg bg-background-gray-secondary px-2.5 py-1.5 font-mono-tech text-[11px] text-text-secondary">
-        {command}
-      </code>
-      <button
-        type="button"
-        onClick={copy}
-        aria-label={`Copy install command for ${name}`}
-        className="shrink-0 rounded-lg border-[0.5px] border-card-border px-2 py-1 text-[11px] text-text-tertiary transition-colors hover:text-text-primary"
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
-    </div>
-  );
+function categoryColor(category: LibraryCategory) {
+  if (category === "Language") return "primary" as const;
+  if (category === "Runtime") return "sky" as const;
+  return "warning" as const;
 }
 
-function LibraryRow({ library, accent }: { library: LibraryItem; accent: string }) {
+function LibraryCard({ item }: { item: LibraryItem }) {
   return (
-    <Card className="py-3.5">
+    <Card className="h-full transition-transform hover:-translate-y-0.5">
       <div className="flex items-start gap-3">
         <span
           className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-mono-tech text-[11px] font-bold",
-            accent,
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-mono-tech text-xs font-bold",
+            item.accent,
           )}
         >
-          {library.name.charAt(0).toUpperCase()}
+          {item.icon}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-mono-tech text-sm font-medium text-text-primary">
-              {library.name}
-            </p>
-            <span className="flex flex-wrap gap-1">
-              {library.tags.map((tag) => (
-                <Badge key={tag} color="gray" size="sm">
-                  {tag}
-                </Badge>
-              ))}
-            </span>
+            <p className="truncate text-sm font-medium text-text-primary">{item.name}</p>
+            <Badge color={categoryColor(item.category)} size="sm">
+              {item.category}
+            </Badge>
           </div>
-          <p className="mt-0.5 text-xs leading-5 text-text-tertiary">{library.description}</p>
-          <CopyCommand command={library.install} name={library.name} />
+          <p className="mt-1 text-xs leading-5 text-text-tertiary">{item.description}</p>
         </div>
       </div>
     </Card>
   );
 }
 
-function LibrarySection({ group }: { group: LibraryGroup }) {
-  return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <span
-          className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
-            group.accent,
-          )}
-        >
-          {group.icon}
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-text-primary">
-            {group.label}
-            <span className="ml-2 font-mono-tech text-xs font-normal text-text-tertiary">
-              {group.libraries.length}
-            </span>
-          </h2>
-          <p className="truncate text-xs text-text-tertiary">{group.description}</p>
-        </div>
-        <Badge color="gray" size="sm" className="ml-auto font-mono-tech">
-          {group.registry}
-        </Badge>
-      </div>
-
-      <div className="grid gap-2">
-        {group.libraries.map((library) => (
-          <LibraryRow key={library.name} library={library} accent={group.accent} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export default function LibrariesPage() {
   const [query, setQuery] = useState("");
-  const [activeGroup, setActiveGroup] = useState<string>("all");
+  const [activeCategory, setActiveCategory] = useState<LibraryCategory | "all">("all");
 
-  const visibleGroups = useMemo(() => {
+  const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matches = (library: LibraryItem) =>
-      !q ||
-      [library.name, library.description, library.install, ...library.tags]
-        .join(" ")
-        .toLowerCase()
-        .includes(q);
-
-    return LIBRARY_GROUPS.filter((group) => activeGroup === "all" || group.id === activeGroup)
-      .map((group) => ({ ...group, libraries: group.libraries.filter(matches) }))
-      .filter((group) => group.libraries.length > 0);
-  }, [query, activeGroup]);
-
-  const visibleCount = visibleGroups.reduce((sum, group) => sum + group.libraries.length, 0);
+    return LIBRARIES.filter((item) => {
+      const inCategory = activeCategory === "all" || item.category === activeCategory;
+      const matches =
+        !q ||
+        [item.name, item.description, item.category].join(" ").toLowerCase().includes(q);
+      return inCategory && matches;
+    });
+  }, [query, activeCategory]);
 
   return (
     <AppShell>
@@ -142,11 +64,11 @@ export default function LibrariesPage() {
               Libraries
             </h1>
             <p className="text-sm leading-5 text-text-tertiary">
-              Popular libraries for the stacks you run — copy a command to install.
+              Languages, runtimes and databases you can run on this host.
             </p>
           </div>
           <Badge color="primary" size="sm">
-            {TOTAL_LIBRARIES} libraries · {LIBRARY_GROUPS.length} ecosystems
+            {LIBRARIES.length} stacks · {LIBRARY_CATEGORIES.length} categories
           </Badge>
         </div>
 
@@ -155,7 +77,7 @@ export default function LibrariesPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search libraries, commands or tags…"
+              placeholder="Search libraries…"
               aria-label="Search libraries"
               className="w-full"
             />
@@ -163,35 +85,35 @@ export default function LibrariesPage() {
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
-              onClick={() => setActiveGroup("all")}
+              onClick={() => setActiveCategory("all")}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                activeGroup === "all"
+                activeCategory === "all"
                   ? "bg-tab-active-background text-text-primary shadow-xs"
                   : "text-text-secondary hover:bg-sidebar-navigation-nav-item-nav-hover-background hover:text-text-primary",
               )}
             >
               All
             </button>
-            {LIBRARY_GROUPS.map((group) => (
+            {LIBRARY_CATEGORIES.map((category) => (
               <button
-                key={group.id}
+                key={category}
                 type="button"
-                onClick={() => setActiveGroup(group.id)}
+                onClick={() => setActiveCategory(category)}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                  activeGroup === group.id
+                  activeCategory === category
                     ? "bg-tab-active-background text-text-primary shadow-xs"
                     : "text-text-secondary hover:bg-sidebar-navigation-nav-item-nav-hover-background hover:text-text-primary",
                 )}
               >
-                {group.label}
+                {category}s
               </button>
             ))}
           </div>
         </div>
 
-        {visibleGroups.length === 0 && (
+        {visible.length === 0 && (
           <Card>
             <p className="py-4 text-center text-sm text-text-tertiary">
               No libraries match “{query.trim()}”.
@@ -199,16 +121,17 @@ export default function LibrariesPage() {
           </Card>
         )}
 
-        {visibleGroups.map((group) => (
-          <LibrarySection key={group.id} group={group} />
-        ))}
+        {visible.length > 0 && (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {visible.map((item) => (
+              <LibraryCard key={item.name} item={item} />
+            ))}
+          </div>
+        )}
 
-        {visibleGroups.length > 0 && (
+        {visible.length > 0 && (
           <p className="pt-1 text-center text-[11px] text-text-tertiary">
-            Showing {visibleCount} of {TOTAL_LIBRARIES} libraries · commands are plain{" "}
-            <span className="font-mono-tech">npm</span>,{" "}
-            <span className="font-mono-tech">pip</span> and{" "}
-            <span className="font-mono-tech">composer</span> installs
+            Showing {visible.length} of {LIBRARIES.length} stacks
           </p>
         )}
       </div>
