@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/tailgrids/core/button";
 import {
   Dialog,
@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/tailgrids/core/dialog";
-import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
 
 /** Shape the privilege API puts on a 403 response. */
@@ -54,6 +53,12 @@ export interface PrivilegeGate {
   dialog: ReactNode;
 }
 
+interface Prompt {
+  /** Increments per prompt so the field always starts empty. */
+  id: number;
+  reason: string | null;
+}
+
 /**
  * One-off "sudo prompt" for privileged actions.
  *
@@ -63,19 +68,13 @@ export interface PrivilegeGate {
  * prompt entirely.
  */
 export function usePrivilegeGate(): PrivilegeGate {
-  const [isOpen, setIsOpen] = useState(false);
-  const [reason, setReason] = useState<string | null>(null);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
+  const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const promptSeq = useRef(0);
   const resolver = useRef<((unlocked: boolean) => void) | null>(null);
 
-  const askForPassword = useCallback((message?: string | null) => {
-    setReason(message ?? null);
-    setPassword("");
-    setError(null);
-    setIsBusy(false);
-    setIsOpen(true);
+  const askForPassword = useCallback((reason?: string | null) => {
+    promptSeq.current += 1;
+    setPrompt({ id: promptSeq.current, reason: reason ?? null });
     return new Promise<boolean>((resolve) => {
       resolver.current = resolve;
     });
@@ -84,39 +83,9 @@ export function usePrivilegeGate(): PrivilegeGate {
   const settle = useCallback((unlocked: boolean) => {
     const resolve = resolver.current;
     resolver.current = null;
-    setIsOpen(false);
-    setPassword("");
-    setIsBusy(false);
+    setPrompt(null);
     resolve?.(unlocked);
   }, []);
-
-  const unlock = useCallback(async () => {
-    if (isBusy) return;
-    if (!password) {
-      setError("Enter the sudo password.");
-      return;
-    }
-
-    setIsBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/privileges", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const json = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) {
-        setError(json?.error ?? `Could not unlock root access (${res.status}).`);
-        setIsBusy(false);
-        return;
-      }
-      settle(true);
-    } catch {
-      setError("Could not reach the panel — check the connection and retry.");
-      setIsBusy(false);
-    }
-  }, [isBusy, password, settle]);
 
   const request = useCallback(
     async <T,>(
@@ -145,88 +114,172 @@ export function usePrivilegeGate(): PrivilegeGate {
     [askForPassword],
   );
 
-  const dialog = (
-    <Dialog
-      isOpen={isOpen}
-      onOpenChange={(open) => {
-        if (!open) settle(false);
-      }}
-      aria-label="Unlock root access"
-      className="max-w-md"
-    >
-      <DialogHeader>
-        <span className="mb-1 flex size-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
-          <LockIcon className="size-5" />
-        </span>
-        <DialogTitle>Root access required</DialogTitle>
-        <p className="text-xs leading-5 text-text-tertiary">
-          {reason ??
-            "This action changes packages or services, so it needs root privileges."}
-        </p>
-      </DialogHeader>
-
-      <DialogBody className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="privilege-password">Sudo password</Label>
-          <Input
-            id="privilege-password"
-            type="password"
-            autoComplete="current-password"
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                unlock();
-              }
-            }}
-            disabled={isBusy}
-            state={error ? "error" : "default"}
-            placeholder="••••••••"
-            className="w-full"
-            aria-invalid={error ? true : undefined}
-          />
-          {error && (
-            <p className="text-xs leading-5 text-button-error-outline-text">{error}</p>
-          )}
-        </div>
-
-        <div className="rounded-lg border border-card-border bg-background-gray-secondary px-3 py-2.5">
-          <p className="text-[11px] leading-5 text-text-tertiary">
-            Checked by <span className="font-mono-tech">sudo</span> and held in the
-            panel&apos;s memory for 15 minutes — never written to disk, cleared on
-            logout or restart. Avoid this on plain HTTP. You can remove the prompt
-            entirely with{" "}
-            <span className="font-mono-tech text-text-secondary">
-              sudo bash scripts/install-privileges.sh
-            </span>
-            .
-          </p>
-        </div>
-      </DialogBody>
-
-      <DialogFooter>
-        <Button
-          variant="ghost"
-          onPress={() => settle(false)}
-          isDisabled={isBusy}
-          className="h-10 px-4"
-        >
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          appearance="fill"
-          onPress={unlock}
-          isDisabled={isBusy || !password}
-          className="h-10 px-4"
-        >
-          {isBusy ? "Verifying…" : "Unlock"}
-        </Button>
-      </DialogFooter>
-    </Dialog>
-  );
+  const dialog = prompt ? (
+    <PrivilegePrompt
+      key={prompt.id}
+      reason={prompt.reason}
+      onResolved={settle}
+    />
+  ) : null;
 
   return { request, dialog };
+}
+
+/**
+ * The password form. Kept as its own component so typing here only re-renders
+ * this dialog — not the page (and its search box / list) behind it.
+ */
+function PrivilegePrompt({
+  reason,
+  onResolved,
+}: {
+  reason: string | null;
+  onResolved: (unlocked: boolean) => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus after the surrounding modal's focus scope settles; autoFocus alone
+  // can be undone by the parent dialog.
+  useEffect(() => {
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const unlock = useCallback(async () => {
+    if (isBusy) return;
+    if (!password) {
+      setError("Enter the sudo password.");
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/privileges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setError(json?.error ?? `Could not unlock root access (${res.status}).`);
+        setIsBusy(false);
+        inputRef.current?.focus();
+        return;
+      }
+      onResolved(true);
+    } catch {
+      setError("Could not reach the panel — check the connection and retry.");
+      setIsBusy(false);
+    }
+  }, [isBusy, onResolved, password]);
+
+  return (
+    <>
+      {/* Backdrop: blocks clicks/typing on the page and the dialog behind, so
+          focus can never land in (for example) the library search box while a
+          password is being entered. RAC's bare Modal has no underlay. */}
+      <div
+        aria-hidden="true"
+        onClick={(e) => {
+          e.stopPropagation();
+          onResolved(false);
+        }}
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+      />
+
+      <Dialog
+        isOpen
+        onOpenChange={(open) => {
+          if (!open) onResolved(false);
+        }}
+        aria-label="Unlock root access"
+        className="z-[60] max-w-md"
+      >
+      <div
+        // Keep keystrokes inside this dialog: nothing else on the page (search
+        // inputs, shortcuts) should react while a password is being typed.
+        onKeyDown={(e) => e.stopPropagation()}
+        onKeyUp={(e) => e.stopPropagation()}
+      >
+        <DialogHeader>
+          <span className="mb-1 flex size-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
+            <LockIcon className="size-5" />
+          </span>
+          <DialogTitle>Root access required</DialogTitle>
+          <p className="text-xs leading-5 text-text-tertiary">
+            {reason ??
+              "This action changes packages or services, so it needs root privileges."}
+          </p>
+        </DialogHeader>
+
+        <DialogBody className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="privilege-password">Sudo password</Label>
+            <input
+              ref={inputRef}
+              id="privilege-password"
+              name="sudo-password"
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              spellCheck={false}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  unlock();
+                }
+              }}
+              disabled={isBusy}
+              placeholder="••••••••"
+              aria-invalid={error ? true : undefined}
+              className="w-full rounded-lg border border-card-border bg-input-background px-4 py-2.5 text-title-50 outline-none duration-300 placeholder:text-input-placeholder-text focus:border-input-primary-focus-border focus:ring-4 focus:ring-input-primary-focus-border/20 disabled:cursor-not-allowed disabled:border-base-100 disabled:text-input-disabled-text disabled:placeholder:text-input-disabled-text"
+            />
+            {error && (
+              <p className="text-xs leading-5 text-button-error-outline-text">{error}</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-card-border bg-background-gray-secondary px-3 py-2.5">
+            <p className="text-[11px] leading-5 text-text-tertiary">
+              Checked by <span className="font-mono-tech">sudo</span> and held in the
+              panel&apos;s memory for 15 minutes — never written to disk, cleared on
+              logout or restart. Avoid this on plain HTTP. You can remove the prompt
+              entirely with{" "}
+              <span className="font-mono-tech text-text-secondary">
+                sudo bash scripts/install-privileges.sh
+              </span>
+              .
+            </p>
+          </div>
+        </DialogBody>
+
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onPress={() => onResolved(false)}
+            isDisabled={isBusy}
+            className="h-10 px-4"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            appearance="fill"
+            onPress={unlock}
+            isDisabled={isBusy || !password}
+            className="h-10 px-4"
+          >
+            {isBusy ? "Verifying…" : "Unlock"}
+          </Button>
+        </DialogFooter>
+      </div>
+      </Dialog>
+    </>
+  );
 }
