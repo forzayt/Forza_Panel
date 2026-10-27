@@ -14,19 +14,19 @@ import {
   Widget4Icon,
 } from "./icon";
 
-interface NavSubItem {
+export interface NavSubItem {
   title: string;
   url?: string;
 }
 
-interface NavItem {
+export interface NavItem {
   title: string;
   url?: string;
   icon?: ReactNode;
   items: NavSubItem[];
 }
 
-interface NavSection {
+export interface NavSection {
   label: string;
   items: NavItem[];
 }

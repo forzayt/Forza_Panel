@@ -19,6 +19,8 @@ export interface NavItemProps {
   href?: string;
   items?: Array<{ title: string; url?: string }>;
   collapsed?: boolean;
+  /** Disable the browser's native link drag so a parent can handle reordering. */
+  linkDraggable?: boolean;
   onItemClick?: () => void;
 }
 
@@ -29,6 +31,7 @@ export default function NavItem({
   href,
   items,
   collapsed,
+  linkDraggable = true,
   onItemClick,
 }: NavItemProps) {
   const pathname = usePathname();
@@ -53,6 +56,7 @@ export default function NavItem({
             <Link
               href={href ?? items?.[0]?.url ?? "#"}
               onClick={handleClick}
+              draggable={linkDraggable}
               className={cn(
                 "flex items-center justify-center rounded-lg px-3 py-2.5",
                 isActive || hasActiveChild
@@ -111,6 +115,7 @@ export default function NavItem({
                 <Link
                   href={item.url ?? "#"}
                   onClick={handleClick}
+                  draggable={linkDraggable}
                   className={cn(
                     "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isChildActive
@@ -134,6 +139,7 @@ export default function NavItem({
       <Link
         href={href}
         onClick={handleClick}
+        draggable={linkDraggable}
         className={cn(
           "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
           isActive

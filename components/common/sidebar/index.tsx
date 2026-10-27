@@ -6,11 +6,11 @@ import { Logo, LogoWithText, LogoWithTextDark } from '@/utils/icon';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type DragEvent } from 'react';
 import type { Key } from 'react-aria-components';
-import { NAV_DATA } from './data';
 import { ThreeDots } from './icon';
 import NavItem from './nav-item';
+import { useNavOrder } from './use-nav-order';
 import { findActiveGroupKey } from './utils';
 
 export default function Sidebar({
@@ -32,6 +32,44 @@ export default function Sidebar({
     const [expandedKeys, setExpandedKeys] = useState<Set<Key>>(
         () => new Set<Key>(activeGroupKey ? [activeGroupKey] : []),
     );
+
+    // Drag-and-drop reordering, scoped to a single category, saved in
+    // localStorage (components/common/sidebar/use-nav-order.ts).
+    const { sections, moveItem } = useNavOrder();
+    const [drag, setDrag] = useState<{ section: string; index: number } | null>(null);
+    const [overIndex, setOverIndex] = useState<number | null>(null);
+
+    const endDrag = useCallback(() => {
+        setDrag(null);
+        setOverIndex(null);
+    }, []);
+
+    const handleDragStart =
+        (sectionLabel: string, index: number) => (event: DragEvent<HTMLDivElement>) => {
+            setDrag({ section: sectionLabel, index });
+            setOverIndex(index);
+            event.dataTransfer.effectAllowed = 'move';
+            // Firefox needs some data set before a drag will start.
+            event.dataTransfer.setData('text/plain', String(index));
+        };
+
+    const handleDragOver =
+        (sectionLabel: string, index: number) => (event: DragEvent<HTMLDivElement>) => {
+            // Only allow drops inside the category the drag started in.
+            if (!drag || drag.section !== sectionLabel) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            if (overIndex !== index) setOverIndex(index);
+        };
+
+    const handleDrop =
+        (sectionLabel: string, index: number) => (event: DragEvent<HTMLDivElement>) => {
+            event.preventDefault();
+            if (drag && drag.section === sectionLabel) {
+                moveItem(sectionLabel, drag.index, index);
+            }
+            endDrag();
+        };
 
     return (
         <div className='flex h-full flex-col overflow-hidden'>
@@ -70,13 +108,18 @@ export default function Sidebar({
                     expandedKeys={expandedKeys}
                     onExpandedChange={setExpandedKeys}
                 >
-                    {NAV_DATA.map((section) => (
+                    {sections.map((section) => (
                         <div key={section.label}>
                             {/* Expanded: show section label | Collapsed: show divider between sections */}
                             {isSidebarOpen ? (
-                                <p className='mt-6 mb-4 text-xs text-text-tertiary uppercase'>
-                                    {section.label}
-                                </p>
+                                <div className='mt-6 mb-4 flex items-center justify-between gap-2'>
+                                    <p className='text-xs text-text-tertiary uppercase'>
+                                        {section.label}
+                                    </p>
+                                    <span className='text-[10px] leading-3 text-text-tertiary'>
+                                        drag to rearrange
+                                    </span>
+                                </div>
                             ) : (
                                 section.label && (
                                     <span className='flex items-center justify-center pt-6 pb-4 text-icon-secondary'>
@@ -91,18 +134,62 @@ export default function Sidebar({
                                     !isSidebarOpen && 'space-y-1.5',
                                 )}
                             >
-                                {section.items.map((item) => (
-                                    <NavItem
-                                        key={item.title}
-                                        id={item.title}
-                                        icon={item.icon}
-                                        label={item.title}
-                                        href={item.url}
-                                        items={item.items}
-                                        collapsed={!isSidebarOpen}
-                                        onItemClick={onItemClick}
-                                    />
-                                ))}
+                                {section.items.map((item, index) => {
+                                    const navItem = (
+                                        <NavItem
+                                            id={item.title}
+                                            icon={item.icon}
+                                            label={item.title}
+                                            href={item.url}
+                                            items={item.items}
+                                            collapsed={!isSidebarOpen}
+                                            linkDraggable={!isSidebarOpen}
+                                            onItemClick={onItemClick}
+                                        />
+                                    );
+
+                                    // The collapsed rail has no room to drop onto,
+                                    // so reordering only happens while expanded.
+                                    if (!isSidebarOpen) {
+                                        return (
+                                            <div key={item.title}>{navItem}</div>
+                                        );
+                                    }
+
+                                    const isDragging =
+                                        drag?.section === section.label && drag.index === index;
+                                    const isDropTarget =
+                                        drag !== null &&
+                                        drag.section === section.label &&
+                                        overIndex === index &&
+                                        drag.index !== index;
+
+                                    return (
+                                        <div
+                                            key={item.title}
+                                            draggable
+                                            title='Drag to reorder'
+                                            onDragStart={handleDragStart(section.label, index)}
+                                            onDragOver={handleDragOver(section.label, index)}
+                                            onDrop={handleDrop(section.label, index)}
+                                            onDragEnd={endDrag}
+                                            className={cn(
+                                                'group/nav relative rounded-lg select-none',
+                                                isDragging && 'opacity-40',
+                                                isDropTarget &&
+                                                    'ring-2 ring-orange-500/60',
+                                            )}
+                                        >
+                                            {navItem}
+                                            <span
+                                                aria-hidden='true'
+                                                className='pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-icon-tertiary opacity-0 transition-opacity group-hover/nav:opacity-70'
+                                            >
+                                                <DragHandle />
+                                            </span>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     ))}
@@ -139,6 +226,26 @@ export default function Sidebar({
             </div>
 
         </div>
+    );
+}
+
+function DragHandle() {
+    return (
+        <svg
+            xmlns='http://www.w3.org/2000/svg'
+            width={10}
+            height={14}
+            viewBox='0 0 10 14'
+            fill='currentColor'
+            aria-hidden='true'
+        >
+            <circle cx='2.5' cy='3' r='1.1' />
+            <circle cx='7.5' cy='3' r='1.1' />
+            <circle cx='2.5' cy='7' r='1.1' />
+            <circle cx='7.5' cy='7' r='1.1' />
+            <circle cx='2.5' cy='11' r='1.1' />
+            <circle cx='7.5' cy='11' r='1.1' />
+        </svg>
     );
 }
 
