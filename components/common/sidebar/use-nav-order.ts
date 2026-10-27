@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NAV_DATA, type NavItem, type NavSection } from "./data";
 
-// Versioned so future nav changes can invalidate stale orders.
-const STORAGE_KEY = "forzapanel.sidebar.order.v1";
+// Versioned so future nav changes can invalidate stale orders. v2: Projects
+// was added right below Dashboard, so previously saved orders are discarded
+// once to put it there by default.
+const STORAGE_KEY = "forzapanel.sidebar.order.v2";
 
 /** section label → ordered list of nav item titles */
 type OrderMap = Record<string, string[]>;
@@ -32,8 +34,10 @@ function readOrder(): OrderMap {
 
 /**
  * Applies a saved order to the static nav data. Titles that no longer exist
- * are dropped, and newly added items are appended in their default position,
- * so the sidebar keeps working when the nav changes.
+ * are dropped, and newly added items land in their *default* position relative
+ * to the items around them (e.g. a new link defined right after Dashboard
+ * shows up right after Dashboard, even for users with a saved order), so the
+ * sidebar keeps working when the nav changes.
  */
 function applyOrder(sections: NavSection[], order: OrderMap): NavSection[] {
   return sections.map((section) => {
@@ -51,8 +55,17 @@ function applyOrder(sections: NavSection[], order: OrderMap): NavSection[] {
         used.add(title);
       }
     }
+    // Insert unknown (newly added) items at their default index rather than
+    // appending them, by comparing against each default neighbour's position.
+    const defaultIndex = new Map(section.items.map((item, index) => [item.title, index]));
     for (const item of section.items) {
-      if (!used.has(item.title)) items.push(item);
+      if (used.has(item.title)) continue;
+      const itemIndex = defaultIndex.get(item.title) ?? Number.MAX_SAFE_INTEGER;
+      const insertAt = items.findIndex(
+        (existing) => (defaultIndex.get(existing.title) ?? -1) > itemIndex,
+      );
+      items.splice(insertAt === -1 ? items.length : insertAt, 0, item);
+      used.add(item.title);
     }
 
     return { ...section, items };
@@ -65,6 +78,12 @@ export function useNavOrder() {
 
   // Read after mount so server and client render the same default order first.
   useEffect(() => {
+    try {
+      // Drop the pre-Projects order so the new default takes effect once.
+      window.localStorage.removeItem("forzapanel.sidebar.order.v1");
+    } catch {
+      // Storage unavailable — nothing to clean up.
+    }
     setOrder(readOrder());
     setHydrated(true);
   }, []);
