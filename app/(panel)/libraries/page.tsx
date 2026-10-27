@@ -14,6 +14,14 @@ import {
 } from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
+import {
+  Select,
+  SelectContent,
+  SelectIndicator,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/tailgrids/core/select";
 import { cn } from "@/utils/cn";
 import { toast } from "sonner";
 import type { LibraryDetail, LibraryStatus } from "@/agent/libraries";
@@ -369,24 +377,37 @@ export default function LibrariesPage() {
             ))}
           </div>
           <div className="flex items-center gap-2 sm:ml-auto">
-            <label
-              htmlFor="library-sort"
-              className="shrink-0 text-xs font-medium text-text-tertiary"
-            >
-              Sort
-            </label>
-            <select
-              id="library-sort"
+            <span className="shrink-0 text-xs font-medium text-text-tertiary">Sort</span>
+            <Select
+              aria-label="Sort libraries"
               value={sort}
-              onChange={(e) => setSort(e.target.value as LibrarySort)}
-              className="rounded-lg border border-card-border bg-input-background px-3 py-1.5 text-sm text-text-primary outline-none focus:border-input-primary-focus-border focus:ring-4 focus:ring-input-primary-focus-border/20"
+              onChange={(value) => setSort(value as LibrarySort)}
+              className="w-48"
             >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="h-9 w-full justify-between">
+                <span aria-hidden="true" className="shrink-0 text-text-tertiary">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    className="size-4"
+                  >
+                    <path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" />
+                  </svg>
+                </span>
+                <SelectValue className="min-w-0 flex-1 truncate text-left" />
+                <SelectIndicator />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} id={option.value} textValue={option.label}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -488,24 +509,44 @@ export default function LibrariesPage() {
 
               {detail && !detailError && detail.canManage && (
                 <div className='space-y-2'>
-                  <Label htmlFor='library-version'>Install version</Label>
-                  <select
-                    id='library-version'
-                    value={version}
-                    onChange={(e) => setVersion(e.target.value)}
-                    disabled={isBusy || detail.versions.length === 0}
-                    className='w-full rounded-lg border border-card-border bg-input-background px-4 py-2.5 text-sm text-text-primary outline-none focus:border-input-primary-focus-border focus:ring-4 focus:ring-input-primary-focus-border/20 disabled:cursor-not-allowed disabled:opacity-60'
-                  >
-                    {detail.versions.length === 0 && (
-                      <option value=''>No versions found — installs the default</option>
-                    )}
-                    {detail.versions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                        {option === detail.installedPackageVersion ? " (installed)" : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <Label>Install version</Label>
+                  {detail.versions.length > 0 ? (
+                    <Select
+                      aria-label='Install version'
+                      value={version}
+                      onChange={(value) => setVersion(value as string)}
+                      isDisabled={isBusy}
+                      className='w-full'
+                    >
+                      <SelectTrigger className='h-11 w-full justify-between'>
+                        <SelectValue className='min-w-0 flex-1 truncate text-left' />
+                        <SelectIndicator />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {detail.versions.map((option) => (
+                          <SelectItem
+                            key={option}
+                            id={option}
+                            textValue={option}
+                            className='py-2'
+                          >
+                            <span className='flex min-w-0 items-center gap-2'>
+                              <span className='truncate font-mono-tech text-xs'>{option}</span>
+                              {option === detail.installedPackageVersion && (
+                                <span className='shrink-0 rounded bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-brand-500 uppercase'>
+                                  installed
+                                </span>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className='rounded-lg border border-dashed border-card-border px-3 py-2.5 text-xs text-text-tertiary'>
+                      No version list available — Install uses the distro's default package.
+                    </div>
+                  )}
                   <p className='text-[11px] text-text-tertiary'>
                     Versions come from <span className='font-mono-tech'>apt-cache policy</span>.
                     Switching releases uses apt, so it needs root or passwordless sudo.
