@@ -16,8 +16,8 @@ import {
 } from "@/components/tailgrids/core/dialog";
 import { Input } from "@/components/tailgrids/core/input";
 import { Label } from "@/components/tailgrids/core/label";
-import InstallLoader from "@/components/InstallLoader";
 import { usePrivilegeGate } from "@/components/common/privilege-dialog";
+import { useLiveTerminal } from "@/components/common/live-terminal";
 import { toast } from "sonner";
 import type { DatabaseRecord } from "@/agent/databases";
 import type { MysqlStatus } from "@/agent/mysql";
@@ -56,6 +56,8 @@ export default function DatabaseDetailPage() {
   const [dbTemplates, setDbTemplates] = useState<DatabaseTemplateSummary[] | null>(null);
   // Prompts for the sudo password when apt needs root.
   const gate = usePrivilegeGate();
+  // Streams apt output while MySQL installs.
+  const terminal = useLiveTerminal();
 
   const fetchDatabase = useCallback(async () => {
     try {
@@ -131,30 +133,35 @@ export default function DatabaseDetailPage() {
   });
 
   const handleInstall = async (templateId: string) => {
+    const label =
+      installOptions.find((option) => option.id === templateId)?.label ?? "MySQL Server";
     setIsInstalling(true);
     try {
-      const { res, json } = await gate.request<{
-        error?: string;
-        version?: string | null;
-      }>("/api/databases/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId }),
+      const result = await terminal.run({
+        title: `Installing ${label}`,
+        subtitle: "apt · mysql-server",
+        request: () =>
+          gate.stream("/api/databases/install", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ templateId }),
+          }),
+        onSuccess: (data) => {
+          const version = typeof data?.version === "string" ? data.version : null;
+          toast.success(version ? `MySQL ${version} installed.` : "MySQL installed.");
+          setIsInstallOpen(false);
+          fetchMysqlStatus();
+          // Re-read database.json so the engine flips from "not installed"
+          // and the Import button hides (the only hide condition).
+          fetchDatabase();
+        },
+        onFinish: () => setIsInstalling(false),
       });
-      if (!res.ok) {
-        toast.error(json?.error ?? `Install failed (${res.status}).`);
+
+      if (!result.ok && result.error && !result.opened) {
+        toast.error(result.error);
         setIsInstalling(false);
-        return;
       }
-      toast.success(
-        json?.version ? `MySQL ${json.version} installed.` : "MySQL installed."
-      );
-      setIsInstallOpen(false);
-      setIsInstalling(false);
-      fetchMysqlStatus();
-      // Re-read database.json so the engine flips from "not installed"
-      // and the Import button hides (the only hide condition).
-      fetchDatabase();
     } catch (e) {
       setIsInstalling(false);
       toast.error(e instanceof Error ? e.message : "Install failed.");
@@ -364,97 +371,84 @@ export default function DatabaseDetailPage() {
         aria-label="Import database"
       >
         <DialogHeader>
-          <DialogTitle>
-            {isInstalling ? "Installing…" : "Import Database"}
-          </DialogTitle>
+          <DialogTitle>Import Database</DialogTitle>
         </DialogHeader>
-        {isInstalling ? (
-          <DialogBody>
-            <InstallLoader />
-            <p className="pb-2 text-center text-sm text-text-tertiary">
-              Installing via apt — this takes a few minutes. Keep this page
-              open.
-            </p>
-          </DialogBody>
-        ) : (
-          <>
-            <DialogBody>
-              <div className="space-y-3">
-                <Input
-                  value={installQuery}
-                  onChange={(e) => setInstallQuery(e.target.value)}
-                  placeholder="Search options…"
-                  aria-label="Search install options"
-                  autoFocus
-                  className="w-full"
-                />
-                <div className="scrollbar-thin max-h-64 overflow-y-auto">
-                  {filteredOptions.length === 0 && (
-                    <p className="px-3 py-4 text-center text-sm text-text-tertiary">
-                      No options found.
-                    </p>
-                  )}
-                  {filteredOptions.map((o) => {
-                    // Real machine status: mysql engine maps to /api/databases/status.
-                    // Future engines plug their own status check here.
-                    const isMysqlEngine = o.engine === "mysql";
-                    const checking = isMysqlEngine && mysql === null;
-                    const installed = isMysqlEngine ? (mysql?.installed ?? false) : false;
-                    return (
-                      <button
-                        key={o.id}
-                        onClick={() => handleInstall(o.id)}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
-                          {o.label.charAt(0).toUpperCase()}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-text-primary">
-                            {o.label}
-                          </span>
-                          <span className="block truncate text-xs text-text-tertiary">
-                            {o.description}
-                            {installed && mysql?.version ? ` · v${mysql.version}` : ""}
-                          </span>
-                        </span>
-                        <Badge
-                          color={checking ? "gray" : installed ? "success" : "gray"}
-                          size="sm"
-                          className="shrink-0 capitalize"
-                        >
-                          <span
-                            className={`size-1.5 rounded-full ${checking ? "bg-current opacity-50" : installed ? "bg-emerald-500" : "bg-current opacity-50"}`}
-                          />
-                          {checking
-                            ? "Checking…"
-                            : installed
-                              ? "Installed"
-                              : "Not installed"}
-                        </Badge>
-                        <span className="shrink-0 text-xs text-text-tertiary">›</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </DialogBody>
-            <DialogFooter>
-              <Button
-                variant="primary"
-                appearance="outline"
-                onPress={() => setIsInstallOpen(false)}
-              >
-                Cancel
-              </Button>
-            </DialogFooter>
+        <DialogBody>
+          <div className="space-y-3">
+            <Input
+              value={installQuery}
+              onChange={(e) => setInstallQuery(e.target.value)}
+              placeholder="Search options…"
+              aria-label="Search install options"
+              autoFocus
+              className="w-full"
+            />
+            <div className="scrollbar-thin max-h-64 overflow-y-auto">
+              {filteredOptions.length === 0 && (
+                <p className="px-3 py-4 text-center text-sm text-text-tertiary">
+                  No options found.
+                </p>
+              )}
+              {filteredOptions.map((o) => {
+                // Real machine status: mysql engine maps to /api/databases/status.
+                // Future engines plug their own status check here.
+                const isMysqlEngine = o.engine === "mysql";
+                const checking = isMysqlEngine && mysql === null;
+                const installed = isMysqlEngine ? (mysql?.installed ?? false) : false;
+                return (
+                  <button
+                    key={o.id}
+                    onClick={() => handleInstall(o.id)}
+                    disabled={isInstalling}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-gray-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-sm font-bold text-text-primary">
+                      {o.label.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-text-primary">
+                        {o.label}
+                      </span>
+                      <span className="block truncate text-xs text-text-tertiary">
+                        {o.description}
+                        {installed && mysql?.version ? ` · v${mysql.version}` : ""}
+                      </span>
+                    </span>
+                    <Badge
+                      color={checking ? "gray" : installed ? "success" : "gray"}
+                      size="sm"
+                      className="shrink-0 capitalize"
+                    >
+                      <span
+                        className={`size-1.5 rounded-full ${checking ? "bg-current opacity-50" : installed ? "bg-emerald-500" : "bg-current opacity-50"}`}
+                      />
+                      {checking ? "Checking…" : installed ? "Installed" : "Not installed"}
+                    </Badge>
+                    <span className="shrink-0 text-xs text-text-tertiary">›</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            variant="primary"
+            appearance="outline"
+            onPress={() => setIsInstallOpen(false)}
+            isDisabled={isInstalling}
+          >
+            Cancel
+          </Button>
+        </DialogFooter>
 
-            {/* sudo prompt — nested so this modal's focus containment
-                doesn't fight the password dialog */}
-            {gate.dialog}
-          </>
-        )}
+        {/* sudo prompt — nested so this modal's focus containment
+            doesn't fight the password dialog */}
+        {gate.dialog}
       </Dialog>
+
+      {/* live apt output while MySQL installs */}
+      {terminal.modal}
     </AppShell>
   );
 }

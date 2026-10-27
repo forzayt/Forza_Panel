@@ -39,13 +39,25 @@ export interface PrivilegeRequestResult<T = unknown> {
   retried: boolean;
 }
 
+/** Shape every guarded API uses for failures. */
+type ErrorPayload = { error?: string; code?: string };
+
 export interface PrivilegeGate {
   /**
    * `fetch` wrapper for privileged endpoints: when the API answers
    * `403 { code: "privilege-required" }` it opens the password dialog, waits
    * for the unlock, and replays the exact same request once.
    */
-  request: <T = unknown>(
+  request: <T = ErrorPayload>(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<PrivilegeRequestResult<T>>;
+  /**
+   * Like `request`, but for streaming endpoints: on success the response body
+   * is left unread so the caller can consume the NDJSON stream. Only error
+   * bodies are parsed (to trigger the sudo prompt and report failures).
+   */
+  stream: <T = ErrorPayload>(
     input: RequestInfo | URL,
     init?: RequestInit,
   ) => Promise<PrivilegeRequestResult<T>>;
@@ -88,7 +100,7 @@ export function usePrivilegeGate(): PrivilegeGate {
   }, []);
 
   const request = useCallback(
-    async <T,>(
+    async <T = ErrorPayload,>(
       input: RequestInfo | URL,
       init?: RequestInit,
     ): Promise<PrivilegeRequestResult<T>> => {
@@ -114,6 +126,39 @@ export function usePrivilegeGate(): PrivilegeGate {
     [askForPassword],
   );
 
+  const stream = useCallback(
+    async <T = ErrorPayload,>(
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<PrivilegeRequestResult<T>> => {
+      let res = await fetch(input, init);
+      let json: (T & { code?: string; error?: string }) | null = null;
+      let retried = false;
+
+      if (!res.ok) {
+        json = (await res.json().catch(() => null)) as
+          | (T & { code?: string; error?: string })
+          | null;
+
+        if (res.status === 403 && json?.code === PRIVILEGE_REQUIRED) {
+          const unlocked = await askForPassword(json.error);
+          if (!unlocked) return { res, json, retried };
+
+          retried = true;
+          res = await fetch(input, init);
+          json = res.ok
+            ? null
+            : ((await res.json().catch(() => null)) as
+                | (T & { code?: string; error?: string })
+                | null);
+        }
+      }
+
+      return { res, json, retried };
+    },
+    [askForPassword],
+  );
+
   const dialog = prompt ? (
     <PrivilegePrompt
       key={prompt.id}
@@ -122,7 +167,7 @@ export function usePrivilegeGate(): PrivilegeGate {
     />
   ) : null;
 
-  return { request, dialog };
+  return { request, stream, dialog };
 }
 
 /**

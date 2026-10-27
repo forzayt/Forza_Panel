@@ -48,7 +48,9 @@ function aptError(
  * authorized through sudoers, so no password is needed; hosts without it can
  * unlock once from the UI and the command runs through `sudo -S`.
  */
-export async function installMysql(): Promise<
+export async function installMysql(
+  onLog?: (line: string) => void,
+): Promise<
   { ok: true; version: string | null } | { error: string; status: number; code?: string }
 > {
   if (os.platform() !== "linux") {
@@ -58,14 +60,16 @@ export async function installMysql(): Promise<
     };
   }
 
+  onLog?.("$ apt-get update -y");
   try {
-    await runPrivileged(["apt-update"]);
+    await runPrivileged(["apt-update"], { onLine: onLog });
   } catch (e) {
     return aptError("update", e);
   }
 
+  onLog?.("$ apt-get install -y mysql-server");
   try {
-    await runPrivileged(["apt-install", "mysql-server"]);
+    await runPrivileged(["apt-install", "mysql-server"], { onLine: onLog });
   } catch (e) {
     return aptError("install", e);
   }
@@ -73,8 +77,9 @@ export async function installMysql(): Promise<
   // Best-effort start: systemd may not exist (containers/WSL). Enabling and
   // starting are separate calls because the helper's allowlist has no --now.
   for (const action of ["enable", "start"] as const) {
+    onLog?.(`$ systemctl ${action} mysql`);
     try {
-      await runPrivileged(["service", action, "mysql"]);
+      await runPrivileged(["service", action, "mysql"], { onLine: onLog });
     } catch {
       // Leave running-state to the operator; binary presence decides success.
     }
@@ -87,5 +92,6 @@ export async function installMysql(): Promise<
       status: 500,
     };
   }
+  onLog?.(`✓ mysql-server installed${status.version ? ` ${status.version}` : ""}`);
   return { ok: true, version: status.version };
 }

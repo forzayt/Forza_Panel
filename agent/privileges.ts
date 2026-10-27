@@ -2,12 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE } from "./admin";
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Privileged operations (apt installs, service control) run through a small
@@ -118,44 +115,116 @@ export async function getPrivilegeStatus(): Promise<PrivilegeStatus> {
   };
 }
 
-function sudoWithPassword(
-  password: string,
+/**
+ * Cheap pre-flight for streaming endpoints: can we start a privileged command
+ * at all? Returns the 403 payload when the UI must ask for a password first,
+ * so the error is delivered *before* the response starts streaming.
+ */
+export async function privilegePreflight(): Promise<{
+  error: string;
+  status: number;
+  code?: string;
+} | null> {
+  if (!isLinux()) {
+    return {
+      error: "Privileged actions are only available on Linux hosts.",
+      status: 400,
+    };
+  }
+  if (isRoot() || helperInstalled() || readUnlock(await sessionKey())) return null;
+  return {
+    error: new PrivilegeRequiredError().message,
+    status: 403,
+    code: "privilege-required",
+  };
+}
+
+interface SpawnOptions {
+  timeout: number;
+  /** Called with each complete line of stdout/stderr as it arrives. */
+  onLine?: (line: string) => void;
+  /** Written to stdin (sudo -S) when set. */
+  password?: string;
+}
+
+function spawnCapture(
+  command: string,
   args: string[],
-  timeout = 600_000,
+  options: SpawnOptions,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn("sudo", ["-S", "-p", "", ...args], {
+    const child = spawn(command, args, {
       env: { ...process.env, DEBIAN_FRONTEND: "noninteractive", LC_ALL: "C" },
     });
 
     let stdout = "";
     let stderr = "";
+    let pending = "";
+    let timedOut = false;
+
+    const emit = (chunk: string) => {
+      if (!options.onLine) return;
+      pending += chunk;
+      let index: number;
+      while ((index = pending.indexOf("\n")) >= 0) {
+        const line = pending.slice(0, index).replace(/\r$/, "");
+        pending = pending.slice(index + 1);
+        if (line.trim().length > 0) options.onLine(line);
+      }
+    };
+
     const timer = setTimeout(() => {
+      timedOut = true;
       child.kill("SIGKILL");
-    }, timeout);
+    }, options.timeout);
 
     child.stdout?.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
+      const text = chunk.toString();
+      stdout += text;
+      emit(text);
     });
     child.stderr?.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
+      const text = chunk.toString();
+      stderr += text;
+      emit(text);
     });
+
     child.once("error", (err) => {
       clearTimeout(timer);
       reject(err);
     });
+
     child.once("close", (code) => {
       clearTimeout(timer);
+
+      // Flush a trailing line that never got its newline.
+      const tail = pending.replace(/\r$/, "");
+      if (options.onLine && tail.trim().length > 0) options.onLine(tail);
+      pending = "";
+
+      if (timedOut) {
+        reject(
+          Object.assign(
+            new Error(`Command timed out after ${Math.round(options.timeout / 1000)}s.`),
+            { exitCode: null },
+          ),
+        );
+        return;
+      }
       if (code === 0) {
         resolve({ stdout, stderr });
         return;
       }
-      const message = stderr.trim() || `sudo exited with code ${code}`;
+      const message = stderr.trim() || `command exited with code ${code}`;
       reject(Object.assign(new Error(message), { exitCode: code }));
     });
 
     // One line only: sudo reads exactly the password from stdin.
-    child.stdin.write(`${password}\n`);
+    child.stdin.on("error", () => {
+      // The child can exit before reading stdin (nothing to pipe to); ignore
+      // the EPIPE instead of crashing the request.
+    });
+    if (options.password !== undefined) child.stdin.write(`${options.password}\n`);
     child.stdin.end();
   });
 }
@@ -171,7 +240,10 @@ export async function unlockPrivileges(password: string): Promise<{ expiresAt: s
 
   try {
     // -k discards any cached timestamp so the password is really checked.
-    await sudoWithPassword(password, ["-k", "true"], 20_000);
+    await spawnCapture("sudo", ["-S", "-p", "", "-k", "true"], {
+      timeout: 20_000,
+      password,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (/not in the sudoers file|is not allowed to execute/i.test(message)) {
@@ -184,7 +256,7 @@ export async function unlockPrivileges(password: string): Promise<{ expiresAt: s
         "sudo on this host requires a terminal. Install the helper instead: `sudo bash scripts/install-privileges.sh`.",
       );
     }
-    if ((err as { exitCode?: number })?.exitCode === undefined) throw err;
+    if ((err as { exitCode?: number | null })?.exitCode === undefined) throw err;
     throw new PrivilegeDeniedError();
   }
 
@@ -200,9 +272,23 @@ export async function lockPrivileges(): Promise<void> {
 
 function isSudoAuthFailure(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
-  return /password is required|a terminal is required|no tty present|not in the sudoers|not allowed to execute|a password is required/i.test(
+  return /password is required|a terminal is required|no tty present|not in the sudoers|not allowed to execute|no password was provided|incorrect password|sorry, try again/i.test(
     message,
   );
+}
+
+/** sudo rejected the password we had cached (rotated password, expired, …). */
+function isSudoPasswordRejected(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /incorrect password|sorry, try again|no password was provided|a password is required|password is required/i.test(
+    message,
+  );
+}
+
+export interface RunPrivilegedOptions {
+  timeout?: number;
+  /** Receives stdout/stderr line by line, for the terminal modal. */
+  onLine?: (line: string) => void;
 }
 
 /**
@@ -214,32 +300,42 @@ function isSudoAuthFailure(err: unknown): boolean {
  */
 export async function runPrivileged(
   args: string[],
-  options: { timeout?: number } = {},
+  options: RunPrivilegedOptions = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const timeout = options.timeout ?? 600_000;
-  const execOptions = {
-    timeout,
-    maxBuffer: 8 * 1024 * 1024,
-    env: { ...process.env, DEBIAN_FRONTEND: "noninteractive", LC_ALL: "C" },
-  };
-
+  const onLine = options.onLine;
   const helper = helperInstalled() ? PRIV_HELPER : null;
 
   if (isRoot()) {
     return helper
-      ? execFileAsync(helper, args, execOptions)
-      : execFileAsync("bash", [REPO_HELPER, ...args], execOptions);
+      ? spawnCapture(helper, args, { timeout, onLine })
+      : spawnCapture("bash", [REPO_HELPER, ...args], { timeout, onLine });
   }
 
   const unlock = readUnlock(await sessionKey());
 
   if (helper && unlock) {
-    return sudoWithPassword(unlock.password, [helper, ...args], timeout);
+    try {
+      return await spawnCapture("sudo", ["-S", "-p", "", helper, ...args], {
+        timeout,
+        onLine,
+        password: unlock.password,
+      });
+    } catch (err) {
+      if (isSudoPasswordRejected(err)) {
+        // Forget the stale password so the next attempt asks again.
+        unlocks.delete(await sessionKey());
+        throw new PrivilegeDeniedError(
+          "sudo rejected the saved password — unlock root access again.",
+        );
+      }
+      throw err;
+    }
   }
 
   if (helper) {
     try {
-      return await execFileAsync("sudo", ["-n", helper, ...args], execOptions);
+      return await spawnCapture("sudo", ["-n", helper, ...args], { timeout, onLine });
     } catch (err) {
       if (isSudoAuthFailure(err)) throw new PrivilegeRequiredError();
       throw err;
@@ -247,7 +343,21 @@ export async function runPrivileged(
   }
 
   if (unlock) {
-    return sudoWithPassword(unlock.password, ["bash", REPO_HELPER, ...args], timeout);
+    try {
+      return await spawnCapture("sudo", ["-S", "-p", "", "bash", REPO_HELPER, ...args], {
+        timeout,
+        onLine,
+        password: unlock.password,
+      });
+    } catch (err) {
+      if (isSudoPasswordRejected(err)) {
+        unlocks.delete(await sessionKey());
+        throw new PrivilegeDeniedError(
+          "sudo rejected the saved password — unlock root access again.",
+        );
+      }
+      throw err;
+    }
   }
 
   throw new PrivilegeRequiredError();

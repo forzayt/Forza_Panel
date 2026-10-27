@@ -25,6 +25,7 @@ import {
 import { cn } from "@/utils/cn";
 import { toast } from "sonner";
 import { usePrivilegeGate } from "@/components/common/privilege-dialog";
+import { useLiveTerminal } from "@/components/common/live-terminal";
 import type { LibraryDetail, LibraryStatus } from "@/agent/libraries";
 import { LIBRARIES, LIBRARY_CATEGORIES, type LibraryItem, type LibraryCategory } from "./_data";
 
@@ -161,6 +162,8 @@ export default function LibrariesPage() {
   const [confirmUninstall, setConfirmUninstall] = useState(false);
   // Asks for the sudo password when apt answers "privilege-required".
   const gate = usePrivilegeGate();
+  // Streams apt output while a stack installs/uninstalls.
+  const terminal = useLiveTerminal();
 
   const refreshStatuses = useCallback(async () => {
     try {
@@ -226,53 +229,67 @@ export default function LibrariesPage() {
 
   const handleInstall = async () => {
     if (!selected || !detail) return;
+    const item = selected;
+    const wasInstalled = detail.installed;
+    const targetVersion = version;
     setIsBusy(true);
     setActionError(null);
     try {
-      const { res, json } = await gate.request<{
-        error?: string;
-        version?: string | null;
-      }>(`/api/libraries/${encodeURIComponent(selected.id)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(version ? { version } : {}),
+      const result = await terminal.run({
+        title: wasInstalled ? `Changing ${item.name} version` : `Installing ${item.name}`,
+        subtitle: `apt · ${item.name}`,
+        request: () =>
+          gate.stream(`/api/libraries/${encodeURIComponent(item.id)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(targetVersion ? { version: targetVersion } : {}),
+          }),
+        onSuccess: async (data) => {
+          const installedVersion =
+            typeof data?.version === "string" ? data.version : null;
+          toast.success(
+            `${item.name} ${wasInstalled ? "updated" : "installed"}${
+              installedVersion ? ` — ${installedVersion}` : ""
+            }.`,
+          );
+          await Promise.all([reloadDetail(item), refreshStatuses()]);
+        },
+        onFinish: () => setIsBusy(false),
       });
-      if (!res.ok) {
-        setActionError(json?.error ?? `Failed to update library (${res.status}).`);
-        return;
-      }
-      toast.success(
-        `${selected.name} ${detail.installed ? "updated" : "installed"}${
-          json?.version ? ` — ${json.version}` : ""
-        }.`,
-      );
-      await Promise.all([reloadDetail(selected), refreshStatuses()]);
+
+      // The job never started (sudo prompt cancelled, bad request, …) — no
+      // terminal to show, so report it inline.
+      if (!result.ok && result.error && !result.opened) setActionError(result.error);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Failed to update library.");
-    } finally {
       setIsBusy(false);
     }
   };
 
   const handleUninstall = async () => {
     if (!selected) return;
+    const item = selected;
     setIsBusy(true);
     setActionError(null);
     try {
-      const { res, json } = await gate.request<{ error?: string }>(
-        `/api/libraries/${encodeURIComponent(selected.id)}`,
-        { method: "DELETE" },
-      );
-      if (!res.ok) {
-        setActionError(json?.error ?? `Failed to uninstall (${res.status}).`);
-        return;
-      }
-      toast.success(`${selected.name} uninstalled.`);
-      setConfirmUninstall(false);
-      await Promise.all([reloadDetail(selected), refreshStatuses()]);
+      const result = await terminal.run({
+        title: `Uninstalling ${item.name}`,
+        subtitle: `apt · ${item.name}`,
+        request: () =>
+          gate.stream(`/api/libraries/${encodeURIComponent(item.id)}`, {
+            method: "DELETE",
+          }),
+        onSuccess: async () => {
+          toast.success(`${item.name} uninstalled.`);
+          setConfirmUninstall(false);
+          await Promise.all([reloadDetail(item), refreshStatuses()]);
+        },
+        onFinish: () => setIsBusy(false),
+      });
+
+      if (!result.ok && result.error && !result.opened) setActionError(result.error);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Failed to uninstall.");
-    } finally {
       setIsBusy(false);
     }
   };
@@ -641,6 +658,9 @@ export default function LibrariesPage() {
             doesn't fight the password dialog */}
         {gate.dialog}
       </Dialog>
+
+      {/* live apt output while installing/uninstalling */}
+      {terminal.modal}
     </AppShell>
   );
 }

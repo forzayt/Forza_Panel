@@ -197,7 +197,8 @@ export async function getLibraryDetail(id: string): Promise<LibraryDetail | null
  */
 export async function installLibrary(
   id: string,
-  version?: string
+  version?: string,
+  onLog?: (line: string) => void
 ): Promise<
   | { ok: true; version: string | null }
   | { error: string; status: number; code?: string }
@@ -213,8 +214,9 @@ export async function installLibrary(
     };
   }
 
+  onLog?.("$ apt-get update -y");
   try {
-    await runPrivileged(["apt-update"]);
+    await runPrivileged(["apt-update"], { onLine: onLog });
   } catch (e) {
     return aptError("update", e);
   }
@@ -223,14 +225,20 @@ export async function installLibrary(
   // path, which adds --allow-downgrades so the dropdown can move a stack back
   // to an older release instead of failing.
   const pinned = version?.trim();
+  onLog?.(
+    pinned
+      ? `$ apt-get install -y --allow-downgrades ${pkg}=${pinned}`
+      : `$ apt-get install -y ${pkg}`
+  );
   try {
-    await runPrivileged(
-      pinned ? ["apt-install", pkg, pinned] : ["apt-install", pkg]
-    );
+    await runPrivileged(pinned ? ["apt-install", pkg, pinned] : ["apt-install", pkg], {
+      onLine: onLog,
+    });
   } catch (e) {
     return aptError("install", e);
   }
 
+  onLog?.(`✓ ${pkg} installed`);
   const status = await getLibraryStatus(id);
   if (!status?.installed) {
     return {
@@ -243,7 +251,8 @@ export async function installLibrary(
 
 /** Removes a stack's apt package (config files are kept). */
 export async function uninstallLibrary(
-  id: string
+  id: string,
+  onLog?: (line: string) => void
 ): Promise<{ ok: true } | { error: string; status: number; code?: string }> {
   const pkg = APT_PACKAGES[id];
   if (!pkg) {
@@ -256,12 +265,14 @@ export async function uninstallLibrary(
     };
   }
 
+  onLog?.(`$ apt-get remove -y ${pkg}`);
   try {
-    await runPrivileged(["apt-remove", pkg]);
+    await runPrivileged(["apt-remove", pkg], { onLine: onLog });
   } catch (e) {
     return aptError("remove", e);
   }
 
+  onLog?.(`✓ ${pkg} removed`);
   const status = await getLibraryStatus(id);
   if (status?.installed) {
     return {

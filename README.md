@@ -133,6 +133,13 @@ panel asks for the sudo password once per session (see
 [Root access](#root-access)). `GET/POST/DELETE /api/libraries/<id>` backs the
 modal.
 
+Install and uninstall **stream their output** into a small terminal modal
+instead of a spinner: the route answers with NDJSON (`{"type":"log","line":…}`
+per line, then one `done` event), so apt's own progress, warnings and errors
+scroll by live. The modal stays open when the job ends — green dot for success,
+red for failure with the last error line — and the list/detail refresh as soon
+as the `done` event arrives.
+
 ### Changelog (`/changelog`)
 
 A timeline of real commits on `main`, read from the public GitHub REST API
@@ -165,7 +172,8 @@ folder-per-item layout as servers, listed straight from disk. Inside a
 database, **Install Database** mirrors the server import flow: a searchable
 option list, a confirm step, then `apt install mysql-server` on Linux through
 the privileged helper (or the one-time sudo prompt — see
-[Root access](#root-access)). The button hides once a
+[Root access](#root-access)), streamed live into a terminal modal while it
+runs. The button hides once a
 MySQL binary is detected. A live MySQL connection, other engines, and user
 management arrive in a later phase.
 
@@ -256,12 +264,16 @@ server, and the list is read straight from disk.
 | POST | `/api/servers/[name]/start` | Run the start command |
 | POST | `/api/servers/[name]/stop` | Stop the tracked process |
 | GET | `/api/templates` | List `template/game/*.json` |
+| GET | `/api/libraries` | Installed-or-not status for every stack |
+| GET | `/api/libraries/[id]` | Detail: version, apt package, available versions |
+| POST | `/api/libraries/[id]` | Install / change version (`{ version? }`, NDJSON stream) |
+| DELETE | `/api/libraries/[id]` | Uninstall (`apt remove`, NDJSON stream) |
 | GET | `/api/databases` | List MySQL database folders |
 | POST | `/api/databases` | Create a database folder (`{ name }`) |
 | GET | `/api/databases/[name]` | One database |
 | DELETE | `/api/databases/[name]` | Remove database folder |
 | GET | `/api/databases/status` | MySQL installed? + version |
-| POST | `/api/databases/install` | apt install mysql-server (Linux) |
+| POST | `/api/databases/install` | apt install mysql-server (Linux, NDJSON stream) |
 | GET | `/api/admin/privileges` | Root-access status (helper / unlocked / expiry) |
 | POST | `/api/admin/privileges` | Verify sudo password, unlock for 15 min |
 | DELETE | `/api/admin/privileges` | Forget the unlocked password |
@@ -276,8 +288,10 @@ agent/               ALL machine-touching code lives here — nothing else
   system.ts          OS metrics, disk probing, LAN IP
   templates.ts       Template library reader
   privileges.ts      Root helper detection, sudo password unlock, runPrivileged
+  stream.ts          NDJSON streaming helper for long privileged jobs
 scripts/             install.sh helpers (forzapanel-priv + sudoers installer)
 components/          Dashboard widgets + tailgrids design-system primitives
+  common/live-terminal.tsx  Streaming terminal modal for installs/uninstalls
 template/game/       Importable game templates (tracked in git)
 data/servers/        One folder per server (runtime data, git-ignored)
 utils/ hooks/ types/ Shared helpers
