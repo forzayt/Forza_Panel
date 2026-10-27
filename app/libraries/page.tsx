@@ -14,28 +14,24 @@ function categoryColor(category: LibraryCategory) {
   return "warning" as const;
 }
 
-function LibraryCard({ item }: { item: LibraryItem }) {
+function LibraryRow({ item }: { item: LibraryItem }) {
   return (
-    <Card className="h-full transition-transform hover:-translate-y-0.5">
-      <div className="flex items-start gap-3">
-        <span
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-mono-tech text-xs font-bold",
-            item.accent,
-          )}
-        >
-          {item.icon}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-medium text-text-primary">{item.name}</p>
-            <Badge color={categoryColor(item.category)} size="sm">
-              {item.category}
-            </Badge>
-          </div>
-          <p className="mt-1 text-xs leading-5 text-text-tertiary">{item.description}</p>
-        </div>
+    <Card className="flex items-center gap-4 py-3.5 transition-colors hover:border-button-primary-outline-stroke">
+      <span
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono-tech text-[11px] font-bold",
+          item.accent,
+        )}
+      >
+        {item.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-text-primary">{item.name}</p>
+        <p className="truncate text-xs leading-5 text-text-tertiary">{item.description}</p>
       </div>
+      <Badge color={categoryColor(item.category)} size="sm" className="shrink-0">
+        {item.category}
+      </Badge>
     </Card>
   );
 }
@@ -122,9 +118,9 @@ export default function LibrariesPage() {
         )}
 
         {visible.length > 0 && (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-2">
             {visible.map((item) => (
-              <LibraryCard key={item.name} item={item} />
+              <LibraryRow key={item.name} item={item} />
             ))}
           </div>
         )}
