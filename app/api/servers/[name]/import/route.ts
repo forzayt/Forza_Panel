@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { importTemplate } from "@/agent/servers";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { name } = await params;
     const body = (await req.json().catch(() => null)) as {

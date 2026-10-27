@@ -1,10 +1,34 @@
 "use client";
 
 import Sidebar from "@/components/common/sidebar";
-import { ReactNode, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ReactNode, useEffect, useState } from "react";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const router = useRouter();
+
+  // Guard every panel page: when admin.json has no username/password the
+  // panel sends the browser to /login (where the account is created), and
+  // an unauthenticated visitor is sent there too.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/status", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`API responded ${res.status}`);
+        return res.json() as Promise<{ configured: boolean; authenticated: boolean }>;
+      })
+      .then((json) => {
+        if (cancelled) return;
+        if (!json.configured || !json.authenticated) router.replace("/login");
+      })
+      .catch(() => {
+        // Status unavailable — leave the page alone instead of locking out.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   return (
     <div className="flex h-full">

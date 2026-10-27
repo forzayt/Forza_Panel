@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { killProcess } from "@/agent/processes";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ pid: string }> }
 ) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { pid } = await params;
     const result = await killProcess(Number(pid));

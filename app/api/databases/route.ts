@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { createDatabase, listDatabases } from "@/agent/databases";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 
 const ENGINE = "mysql";
 
 export async function GET() {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const result = await listDatabases(ENGINE);
     if (Array.isArray(result)) {
@@ -24,6 +29,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = (await req.json().catch(() => null)) as {
       name?: unknown;

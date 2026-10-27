@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { createServer, listServers } from "@/agent/servers";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const servers = await listServers();
     return NextResponse.json(
@@ -19,6 +24,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = (await req.json().catch(() => null)) as { name?: unknown } | null;
     const name = typeof body?.name === "string" ? body.name : "";

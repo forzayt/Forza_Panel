@@ -3,6 +3,8 @@ import { installMysql } from "@/agent/mysql";
 import { markDatabasesEngineInstalled } from "@/agent/databases";
 import { getDatabaseTemplate } from "@/agent/templates";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 // NOTE: apt install takes minutes — this route awaits completion like the
 // template-import route does. Do not put a timeout in front of it.
@@ -11,6 +13,9 @@ export const maxDuration = 600;
 const ENGINE = "mysql";
 
 export async function POST(req: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     // Optional templateId from the Import modal (template/database/*.json).
     // Today only "mysql" is supported — unknown ids are rejected so future

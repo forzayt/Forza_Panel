@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { getLocalIp } from "@/agent/system";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     // Public IP via ipify; fall back to LAN IP when offline.
     try {

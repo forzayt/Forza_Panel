@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { deleteServer, getServer, isValidServerName } from "@/agent/servers";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { name } = await params;
     const result = await deleteServer(decodeURIComponent(name));
@@ -26,6 +31,9 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { name } = await params;
     const decoded = decodeURIComponent(name);

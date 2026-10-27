@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { deleteDatabase, getDatabase } from "@/agent/databases";
 
+import { requireAdmin } from "@/agent/auth";
+
 export const dynamic = "force-dynamic";
 
 const ENGINE = "mysql";
@@ -9,6 +11,9 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { name } = await params;
     const database = await getDatabase(ENGINE, decodeURIComponent(name));
@@ -31,6 +36,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { name } = await params;
     const result = await deleteDatabase(ENGINE, decodeURIComponent(name));
