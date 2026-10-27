@@ -272,6 +272,39 @@ export default function Sidebar({
                 )}
             </div>
 
+            <Dialog
+                isOpen={isLogoutOpen}
+                onOpenChange={setIsLogoutOpen}
+                aria-label='Confirm logout'
+            >
+                <DialogHeader>
+                    <DialogTitle>Sign out?</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                    <p className='text-sm text-text-secondary'>
+                        You will need your username and password to sign back in.
+                    </p>
+                </DialogBody>
+                <DialogFooter>
+                    <Button
+                        variant='primary'
+                        appearance='outline'
+                        onPress={() => setIsLogoutOpen(false)}
+                        isDisabled={isLoggingOut}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant='danger'
+                        appearance='fill'
+                        onPress={handleLogout}
+                        isDisabled={isLoggingOut}
+                    >
+                        {isLoggingOut ? 'Signing out…' : 'Logout'}
+                    </Button>
+                </DialogFooter>
+            </Dialog>
+
         </div>
     );
 }
