@@ -67,6 +67,14 @@ Live system overview of the machine running the panel, polling
 The header pill shows online status plus the machine's **public IP**
 (`GET /api/ip` via ipify, LAN fallback) with a copy button.
 
+### Projects (`/projects`)
+
+Lightweight workspace grouping for related servers and resources. Create a
+project with a name and description; cards show the creation date and can be
+searched or deleted (with a confirmation dialog). Projects are stored in the
+browser (`localStorage` key `forzapanel.projects.v1`) — there is no backend
+yet, so the list is per-browser.
+
 ### Processes (`/system/processes`)
 
 Task-Manager-style live process list, polling `GET /api/processes`

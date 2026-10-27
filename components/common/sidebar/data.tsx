@@ -7,6 +7,7 @@ import {
   LetterIcon,
   LibrariesIcon,
   PieChartIcon,
+  ProjectsIcon,
   ServicesIcon,
   TableIcon,
   TaskIcon,
@@ -39,6 +40,12 @@ export const NAV_DATA: NavSection[] = [
         title: "Dashboard",
         url: "/",
         icon: <HomeIcon />,
+        items: [],
+      },
+      {
+        title: "Projects",
+        url: "/projects",
+        icon: <ProjectsIcon />,
         items: [],
       },
       {

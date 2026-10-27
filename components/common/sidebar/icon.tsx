@@ -90,6 +90,19 @@ export function LibrariesIcon() {
   );
 }
 
+export function ProjectsIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <path
+        d="M2.25 5.25C2.25 4.00736 3.25736 3 4.5 3H6.87868C7.2765 3 7.65803 3.15804 7.93934 3.43934L8.56066 4.06066C8.84197 4.34197 9.2235 4.5 9.62132 4.5H13.5C14.7426 4.5 15.75 5.50736 15.75 6.75V12.75C15.75 13.9926 14.7426 15 13.5 15H4.5C3.25736 15 2.25 13.9926 2.25 12.75V5.25Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function UserIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">
