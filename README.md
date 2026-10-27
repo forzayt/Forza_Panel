@@ -13,7 +13,7 @@ live logs — all from one dashboard.
 
 ## Quick start
 
-One command on a fresh VPS (installs Node 20, clones, installs, runs dev):
+One command on a fresh VPS (installs the latest Node.js LTS, clones, installs, runs dev):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/forzayt/Forza_Panel/main/install.sh | bash
