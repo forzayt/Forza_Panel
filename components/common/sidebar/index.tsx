@@ -1,11 +1,19 @@
 'use client';
 
 import { CollapsibleGroup } from '@/components/tailgrids/core/collapsible';
+import { Button } from '@/components/tailgrids/core/button';
+import {
+    Dialog,
+    DialogBody,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/tailgrids/core/dialog';
 import { cn } from '@/utils/cn';
 import { Logo, LogoWithText, LogoWithTextDark } from '@/utils/icon';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState, type DragEvent } from 'react';
 import type { Key } from 'react-aria-components';
 import { ThreeDots } from './icon';
@@ -21,6 +29,7 @@ export default function Sidebar({
     onItemClick?: () => void;
 }) {
     const pathname = usePathname();
+    const router = useRouter();
     const { theme } = useTheme();
 
     // Compute which group should be open based on the current route
@@ -43,6 +52,21 @@ export default function Sidebar({
         setDrag(null);
         setOverIndex(null);
     }, []);
+
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [isLogoutOpen, setIsLogoutOpen] = useState(false);
+
+    const handleLogout = useCallback(async () => {
+        if (isLoggingOut) return;
+        setIsLoggingOut(true);
+        try {
+            await fetch('/api/admin/logout', { method: 'POST' });
+        } catch {
+            // Even if the request fails, drop the user back on the login page.
+        }
+        router.replace('/login');
+        router.refresh();
+    }, [isLoggingOut, router]);
 
     const handleDragStart =
         (sectionLabel: string, index: number) => (event: DragEvent<HTMLDivElement>) => {
@@ -196,22 +220,35 @@ export default function Sidebar({
                 </CollapsibleGroup>
             </nav>
 
-            {/* Contribute footer */}
-            <div className='px-4 py-4'>
+            {/* Footer: Contribute + Logout */}
+            <div className='space-y-2 px-4 py-4'>
                 {isSidebarOpen ? (
-                    <Link
-                        href='https://github.com/forzayt/Forza_Panel'
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        className='flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-sidebar-navigation-nav-item-nav-hover-background hover:text-text-primary'
-                    >
-                        <span className='text-icon-tertiary'>
-                            <GithubIcon />
-                        </span>
-                        <span>Contribute</span>
-                    </Link>
+                    <>
+                        <Link
+                            href='https://github.com/forzayt/Forza_Panel'
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-sidebar-navigation-nav-item-nav-hover-background hover:text-text-primary'
+                        >
+                            <span className='text-icon-tertiary'>
+                                <GithubIcon />
+                            </span>
+                            <span>Contribute</span>
+                        </Link>
+                        <Button
+                            variant='danger'
+                            appearance='fill'
+                            size='sm'
+                            onPress={handleLogout}
+                            isDisabled={isLoggingOut}
+                            className='w-full gap-2'
+                        >
+                            <LogoutIcon />
+                            {isLoggingOut ? 'Signing out…' : 'Logout'}
+                        </Button>
+                    </>
                 ) : (
-                    <div className='flex justify-center'>
+                    <div className='flex flex-col items-center gap-2'>
                         <Link
                             href='https://github.com/forzayt/Forza_Panel'
                             target='_blank'
@@ -221,6 +258,18 @@ export default function Sidebar({
                         >
                             <GithubIcon />
                         </Link>
+                        <Button
+                            variant='danger'
+                            appearance='fill'
+                            size='sm'
+                            iconOnly
+                            aria-label='Logout'
+                            title='Logout'
+                            onPress={handleLogout}
+                            isDisabled={isLoggingOut}
+                        >
+                            <LogoutIcon />
+                        </Button>
                     </div>
                 )}
             </div>
@@ -245,6 +294,31 @@ function DragHandle() {
             <circle cx='7.5' cy='7' r='1.1' />
             <circle cx='2.5' cy='11' r='1.1' />
             <circle cx='7.5' cy='11' r='1.1' />
+        </svg>
+    );
+}
+
+function LogoutIcon() {
+    return (
+        <svg
+            xmlns='http://www.w3.org/2000/svg'
+            width={18}
+            height={18}
+            viewBox='0 0 18 18'
+            fill='none'
+        >
+            <path
+                d='M9 2.25V8.25'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+            />
+            <path
+                d='M12.375 4.95a5.25 5.25 0 1 1-6.75 0'
+                stroke='currentColor'
+                strokeWidth='1.5'
+                strokeLinecap='round'
+            />
         </svg>
     );
 }

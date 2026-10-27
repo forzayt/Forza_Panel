@@ -5,8 +5,10 @@ import {
   ADMIN_COOKIE_MAX_AGE,
   credentialsMatch,
   isAdminConfigured,
+  isHashedPassword,
   readAdminConfig,
   sessionToken,
+  writeAdminConfig,
 } from "@/agent/admin";
 
 export const dynamic = "force-dynamic";
@@ -36,15 +38,21 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!credentialsMatch(config, username, password)) {
+  if (!(await credentialsMatch(config, username, password))) {
     return NextResponse.json(
       { error: "Invalid username or password." },
       { status: 401 },
     );
   }
 
+  // Reuse the hash: a hand-written plaintext password is replaced with its
+  // scrypt hash on the first successful sign-in.
+  const stored = isHashedPassword(config.password)
+    ? config
+    : await writeAdminConfig(config);
+
   const store = await cookies();
-  store.set(ADMIN_COOKIE, sessionToken(config), {
+  store.set(ADMIN_COOKIE, sessionToken(stored), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

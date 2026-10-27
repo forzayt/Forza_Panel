@@ -38,10 +38,10 @@ export async function POST(request: Request) {
     );
   }
 
-  await writeAdminConfig({ username, password });
+  const stored = await writeAdminConfig({ username, password });
 
   const store = await cookies();
-  store.set(ADMIN_COOKIE, sessionToken({ username, password }), {
+  store.set(ADMIN_COOKIE, sessionToken(stored), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
