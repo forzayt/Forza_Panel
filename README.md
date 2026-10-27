@@ -23,8 +23,13 @@ curl -fsSL https://raw.githubusercontent.com/forzayt/Forza_Panel/main/install.sh
 ```
 
 Re-running the same command updates the checkout, rebuilds and restarts the
-service. Override `PORT`, `APP_DIR`, `APP_USER` or `SERVICE_NAME` in front of
-`bash`, e.g. `PORT=8080 bash install.sh`.
+service. Override `PORT`, `APP_DIR`, `APP_USER` or `SERVICE_NAME` on the right
+side of the pipe, e.g.:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/forzayt/Forza_Panel/main/install.sh \
+  | PORT=8080 APP_DIR=/opt/forzapanel bash
+```
 
 ```bash
 sudo systemctl status forzapanel    # is it running?
@@ -36,6 +41,13 @@ sudo systemctl stop forzapanel
 On hosts without systemd (containers, plain WSL) the script starts the panel
 detached with `setsid` instead — it survives the terminal closing, but you have
 to start it yourself after a reboot.
+
+The service runs as the user who ran the installer (`SUDO_USER` when you used
+`sudo`, otherwise your own account) out of `forzapanel/` in their home, so
+nothing in the checkout ends up root-owned. If you are logged in as **root**,
+the panel would run as root — the script warns; pass `APP_USER=someuser
+APP_DIR=/home/someuser/forzapanel` to avoid that. Port 3000 needs no
+privileges, so a normal user is enough.
 
 Or manually:
 

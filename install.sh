@@ -30,10 +30,27 @@ die() {
   exit 1
 }
 
+[ "$(uname -s)" = "Linux" ] || die "this installer targets Linux (apt + systemd); run it on the VPS"
+
+# NB: with `curl … | bash` this script arrives on stdin. A child that reads
+# stdin would swallow the remaining script and the install would stop halfway,
+# so every helper below is given /dev/null explicitly. sudo still asks for its
+# password because it opens /dev/tty directly, not stdin.
+
 id -u "$APP_USER" >/dev/null 2>&1 || die "user \"$APP_USER\" does not exist"
 [[ "$SERVICE_NAME" =~ ^[A-Za-z0-9_.@-]+$ ]] || die "invalid SERVICE_NAME: $SERVICE_NAME"
 [[ "$PORT" =~ ^[0-9]+$ ]] || die "invalid PORT: $PORT"
 [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || die "PORT must be 1-65535"
+
+# Privileges: use sudo when we are not root already. Minimal images that log
+# you straight in as root often ship without sudo, so don't assume it exists.
+if [ "$(id -u)" -eq 0 ]; then
+  SUDO=""
+elif command -v sudo >/dev/null 2>&1; then
+  SUDO="sudo"
+else
+  die "sudo is required — install it, or run this script as root"
+fi
 
 if [ "$APP_USER" = "root" ]; then
   warn "the panel will run as root — prefer a normal user (set APP_USER=youruser)"
@@ -42,8 +59,8 @@ fi
 # --- Node.js (latest LTS from NodeSource, never a pinned version) -----------
 if ! command -v node >/dev/null 2>&1 || [ "$(node -p "process.versions.node.split('.')[0]")" -lt "$MIN_NODE_MAJOR" ]; then
   say "Installing the latest Node.js LTS"
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo bash -
-  sudo apt-get install -y nodejs
+  curl -fsSL https://deb.nodesource.com/setup_lts.x | $SUDO bash -
+  $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs </dev/null
   echo "Node.js $(node -v) installed"
 fi
 
@@ -52,15 +69,20 @@ NODE_BIN="$(command -v node)"
 
 # --- Source ------------------------------------------------------------------
 if [ -d "$APP_DIR/.git" ]; then
-  say "Updating $APP_DIR"
-  git -C "$APP_DIR" pull --ff-only || warn "could not fast-forward the repository — continuing with the local checkout"
+  APP_FULL="$(cd "$APP_DIR" && pwd -P)"
+  say "Updating $APP_FULL"
+  # Since git 2.35 a root-owned shell refuses to touch a repo owned by another
+  # user ("detected dubious ownership"). The checkout belongs to APP_USER, so
+  # allow that one path for this single command.
+  git -c safe.directory="$APP_FULL" -C "$APP_FULL" pull --ff-only \
+    || warn "could not fast-forward the repository — continuing with the local checkout"
 else
   say "Cloning into $APP_DIR"
-  git clone "$REPO_URL" "$APP_DIR"
+  git clone "$REPO_URL" "$APP_DIR" </dev/null
+  APP_FULL="$(cd "$APP_DIR" && pwd -P)"
 fi
 
-cd "$APP_DIR"
-APP_FULL="$(pwd -P)"
+cd "$APP_FULL"
 
 # --- Stop whatever is already serving this folder -----------------------------
 # A leftover `npm run dev` holds port 3000 and would fight the service. Only
@@ -80,16 +102,16 @@ stop_local_dev() {
 }
 
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-  sudo systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+  $SUDO systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 fi
 stop_local_dev
 
 # --- Dependencies + production build -----------------------------------------
 say "Installing npm dependencies"
-npm i
+npm i </dev/null
 
 say "Building the production bundle (this takes a minute)"
-npm run build
+npm run build </dev/null
 
 # --- Root helper --------------------------------------------------------------
 # Lets the panel run apt/service actions through a small allowlisted script
@@ -97,15 +119,18 @@ npm run build
 # panel falls back to asking for the sudo password once per session, so a
 # failure is a warning, not fatal.
 say "Installing the privileged helper"
-if ! sudo bash scripts/install-privileges.sh "$APP_USER"; then
+if ! $SUDO bash scripts/install-privileges.sh "$APP_USER" </dev/null; then
   warn "could not install the privilege helper — the panel will ask for the sudo password instead."
 fi
 
 # Files created while running as root must belong to the service user.
 if [ "$(id -u)" -eq 0 ] && [ "$APP_USER" != "root" ]; then
   chown -R "$APP_USER":"$(id -gn "$APP_USER")" "$APP_FULL" 2>/dev/null || true
-  if ! sudo -u "$APP_USER" test -r "$APP_FULL/package.json"; then
-    die "$APP_FULL is not readable by $APP_USER — clone the panel into that user's home and retry"
+  # A checkout inside /root is unreadable for the service user; catch that here
+  # instead of letting systemd fail with a bare permission error.
+  if command -v runuser >/dev/null 2>&1; then
+    runuser -u "$APP_USER" -- test -r "$APP_FULL/package.json" </dev/null ||
+      die "$APP_FULL is not readable by $APP_USER — clone the panel into that user's home (e.g. APP_DIR=/home/$APP_USER/forzapanel) and retry"
   fi
 fi
 
@@ -117,7 +142,7 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
 
   say "Registering the systemd service ${SERVICE_NAME}.service"
-  sudo tee "$UNIT" >/dev/null <<EOF
+  $SUDO tee "$UNIT" >/dev/null <<EOF
 [Unit]
 Description=ForzaPanel game server control panel
 Documentation=https://github.com/forzayt/Forza_Panel
@@ -140,9 +165,9 @@ TimeoutStopSec=20
 WantedBy=multi-user.target
 EOF
 
-  sudo systemctl daemon-reload
-  sudo systemctl enable "$SERVICE_NAME" >/dev/null
-  sudo systemctl restart "$SERVICE_NAME"
+  $SUDO systemctl daemon-reload
+  $SUDO systemctl enable "$SERVICE_NAME" >/dev/null
+  $SUDO systemctl restart "$SERVICE_NAME"
 
   say "Waiting for the panel to answer on port $PORT"
   STARTED=0
@@ -156,7 +181,7 @@ EOF
       fi
       sleep 1
     done
-    if [ "$STARTED" -eq 0 ] && sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+    if [ "$STARTED" -eq 0 ] && $SUDO systemctl is-active --quiet "$SERVICE_NAME"; then
       # Running, but maybe still compiling its first request — good enough.
       STARTED=2
     fi

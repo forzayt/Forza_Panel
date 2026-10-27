@@ -1,2 +1,5 @@
 # Keep shell scripts LF-only so shebangs work on Linux.
 *.sh text eol=lf
+# Extensionless helpers would otherwise be converted by autocrlf and fail with
+# "bad interpreter" on Linux.
+scripts/forzapanel-priv text eol=lf
