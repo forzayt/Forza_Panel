@@ -103,6 +103,15 @@ export function ProjectsIcon() {
   );
 }
 
+export function ChangelogIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <path d="M1.5 9h4.5M12 9h4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="9" cy="9" r="2.25" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export function UserIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 18 18" fill="none">

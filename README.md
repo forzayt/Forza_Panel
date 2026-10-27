@@ -88,6 +88,16 @@ and — on Linux — a version dropdown plus **Install / Change version** and
 `apt-get install pkg=version`, which needs root or passwordless sudo;
 `GET/POST/DELETE /api/libraries/<id>` backs the modal.
 
+### Changelog (`/changelog`)
+
+A timeline of real commits on `main`, read from the public GitHub REST API
+(`api.github.com/repos/forzayt/Forza_Panel/commits`, cached for five minutes,
+no token required). Each entry shows the commit message and body, relative
+commit time, a short SHA linking to the commit, and the author's avatar/name
+linking to their GitHub profile. Header buttons jump to the repository and
+the full commit list; rate limits or offline hosts render a friendly fallback
+card instead of an error page.
+
 ### Processes (`/system/processes`)
 
 Task-Manager-style live process list, polling `GET /api/processes`

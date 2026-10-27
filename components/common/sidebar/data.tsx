@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   AlphabetIcon,
+  ChangelogIcon,
   ChatIcon,
   HomeIcon,
   InvoiceIcon,
@@ -105,6 +106,12 @@ export const NAV_DATA: NavSection[] = [
         title: "Processes",
         url: "/system/processes",
         icon: <TaskIcon />,
+        items: [],
+      },
+      {
+        title: "Changelog",
+        url: "/changelog",
+        icon: <ChangelogIcon />,
         items: [],
       },
       {
